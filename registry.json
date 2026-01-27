@@ -3,8 +3,8 @@
   "modules": [
     {
       "name": "recipes",
-      "version": "1.2.0",
-      "release_tag": "recipes-v1.2.0",
+      "version": "1.2.1",
+      "release_tag": "recipes-v1.2.1",
       "description": "Manage recipes, grocery lists, pantry, and meal planning",
       "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"]
     }

@@ -1,6 +1,6 @@
 {
   "name": "recipes",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Manage recipes, grocery lists, pantry, and meal planning",
   "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"],
   "entities": [
@@ -228,8 +228,16 @@
   ],
   "fast_match": [
     {"pattern": "add * to * list", "tool": "add_item"},
+    {"pattern": "add * to the sams list", "tool": "add_item"},
+    {"pattern": "add * to the sam's list", "tool": "add_item"},
+    {"pattern": "add * to the smiths list", "tool": "add_item"},
+    {"pattern": "add * to the smith's list", "tool": "add_item"},
     {"pattern": "add * to sams", "tool": "add_item"},
+    {"pattern": "add * to sam's", "tool": "add_item"},
+    {"pattern": "add * to sams club", "tool": "add_item"},
+    {"pattern": "add * to sam's club", "tool": "add_item"},
     {"pattern": "add * to smiths", "tool": "add_item"},
+    {"pattern": "add * to smith's", "tool": "add_item"},
     {"pattern": "add * to pantry", "tool": "add_item"},
     {"pattern": "what's on my * list", "tool": "list_items"},
     {"pattern": "show my * list", "tool": "list_items"},
