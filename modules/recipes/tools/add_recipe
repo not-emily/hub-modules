@@ -1,0 +1,77 @@
+#!/bin/bash
+# Add a new recipe
+# Uses: file.write, file.exists, time.now, text.slugify primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+# Accept 'name' or 'item' (from intent matching)
+NAME=$(echo "$PARAMS" | jq -r '.name // .item // empty')
+DESCRIPTION=$(echo "$PARAMS" | jq -r '.description // ""')
+CATEGORY=$(echo "$PARAMS" | jq -r '.category // "main"')
+INGREDIENTS=$(echo "$PARAMS" | jq -c '.ingredients // []')
+INSTRUCTIONS=$(echo "$PARAMS" | jq -c '.instructions // []')
+SERVINGS=$(echo "$PARAMS" | jq -r '.servings // 4')
+PREP_TIME=$(echo "$PARAMS" | jq -r '.prep_time // null')
+COOK_TIME=$(echo "$PARAMS" | jq -r '.cook_time // null')
+TAGS=$(echo "$PARAMS" | jq -c '.tags // []')
+
+# Validate required fields
+if [ -z "$NAME" ]; then
+    echo '{"error": "name is required"}' >&2
+    exit 3
+fi
+
+# Generate slug from name
+SLUG=$("$PRIM" text.slugify "$NAME")
+
+# Ensure recipes directory exists
+RECIPES_DIR="$HUB_USER_DATA/recipes"
+mkdir -p "$RECIPES_DIR"
+
+# Check if recipe already exists
+RECIPE_FILE="$RECIPES_DIR/${SLUG}.json"
+if "$PRIM" file.exists "$RECIPE_FILE" >/dev/null 2>&1; then
+    echo "{\"error\": \"Recipe '$NAME' already exists\", \"slug\": \"$SLUG\"}" >&2
+    exit 1
+fi
+
+# Get current timestamp
+CREATED=$("$PRIM" time.now)
+
+# Build recipe JSON
+RECIPE=$(jq -n \
+    --arg name "$NAME" \
+    --arg slug "$SLUG" \
+    --arg description "$DESCRIPTION" \
+    --arg category "$CATEGORY" \
+    --argjson ingredients "$INGREDIENTS" \
+    --argjson instructions "$INSTRUCTIONS" \
+    --argjson servings "$SERVINGS" \
+    --argjson prep_time "$PREP_TIME" \
+    --argjson cook_time "$COOK_TIME" \
+    --argjson tags "$TAGS" \
+    --arg created "$CREATED" \
+    '{
+        name: $name,
+        slug: $slug,
+        description: $description,
+        category: $category,
+        ingredients: $ingredients,
+        instructions: $instructions,
+        servings: $servings,
+        prep_time: $prep_time,
+        cook_time: $cook_time,
+        tags: $tags,
+        created: $created
+    }')
+
+# Write recipe file
+echo "$RECIPE" | "$PRIM" file.write "$RECIPE_FILE"
+
+# Output result
+echo "{\"success\": true, \"message\": \"Created recipe '$NAME'\", \"slug\": \"$SLUG\", \"file\": \"$RECIPE_FILE\"}"

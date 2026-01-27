@@ -1,0 +1,28 @@
+#!/bin/bash
+# List all items in a list
+# Uses: file.exists, file.read primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+ENTITY=$(echo "$PARAMS" | jq -r '.entity // "grocery_list"')
+
+# List file path
+LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"
+
+# Check if list exists
+if ! "$PRIM" file.exists "$LIST_FILE" >/dev/null 2>&1; then
+    echo "{\"items\": [], \"entity\": \"$ENTITY\", \"count\": 0, \"message\": \"$ENTITY is empty\"}"
+    exit 0
+fi
+
+# Read and output list
+CONTENT=$("$PRIM" file.read "$LIST_FILE")
+ITEMS=$(echo "$CONTENT" | jq -r '.items')
+COUNT=$(echo "$ITEMS" | jq 'length')
+
+echo "{\"items\": $ITEMS, \"entity\": \"$ENTITY\", \"count\": $COUNT}"

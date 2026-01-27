@@ -1,0 +1,50 @@
+#!/bin/bash
+# Get a recipe by name or slug
+# Uses: file.read, file.list, text.slugify primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+NAME=$(echo "$PARAMS" | jq -r '.name // empty')
+
+if [ -z "$NAME" ]; then
+    echo '{"error": "name is required"}' >&2
+    exit 3
+fi
+
+RECIPES_DIR="$HUB_USER_DATA/recipes"
+
+# First try exact slug match
+SLUG=$("$PRIM" text.slugify "$NAME")
+RECIPE_FILE="$RECIPES_DIR/${SLUG}.json"
+
+if "$PRIM" file.exists "$RECIPE_FILE" >/dev/null 2>&1; then
+    RECIPE=$("$PRIM" file.read "$RECIPE_FILE")
+    echo "{\"success\": true, \"recipe\": $RECIPE}"
+    exit 0
+fi
+
+# Try fuzzy match - search all recipes for matching name
+if [ -d "$RECIPES_DIR" ]; then
+    SEARCH_LOWER=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
+
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        RECIPE=$("$PRIM" file.read "$file")
+        RECIPE_NAME=$(echo "$RECIPE" | jq -r '.name')
+        RECIPE_NAME_LOWER=$(echo "$RECIPE_NAME" | tr '[:upper:]' '[:lower:]')
+
+        # Check if search term is contained in recipe name
+        if [[ "$RECIPE_NAME_LOWER" == *"$SEARCH_LOWER"* ]]; then
+            echo "{\"success\": true, \"recipe\": $RECIPE, \"match\": \"fuzzy\"}"
+            exit 0
+        fi
+    done < <("$PRIM" file.list "$RECIPES_DIR" "*.json" 2>/dev/null)
+fi
+
+echo "{\"error\": \"Recipe not found: $NAME\", \"searched\": \"$SLUG\"}" >&2
+exit 1

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Clear all items from a list
+# Uses: file.write primitive
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+ENTITY=$(echo "$PARAMS" | jq -r '.entity // "grocery_list"')
+
+# List file path
+LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"
+
+# Ensure data directory exists
+mkdir -p "$HUB_USER_DATA"
+
+# Clear the list using file.write primitive
+echo '{"items": []}' | "$PRIM" file.write "$LIST_FILE"
+
+echo "{\"success\": true, \"message\": \"Cleared $ENTITY\", \"entity\": \"$ENTITY\"}"

@@ -1,0 +1,9 @@
+# Build artifacts
+dist/
+
+# OS files
+.DS_Store
+
+# Python cache (if any tools use python)
+__pycache__/
+*.pyc

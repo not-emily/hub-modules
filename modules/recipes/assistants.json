@@ -1,0 +1,24 @@
+{
+  "templates": [
+    {
+      "name": "chef",
+      "display_name": "Chef Assistant",
+      "persona": "You are a helpful cooking assistant. You help users find recipes, suggest meal ideas, and provide cooking tips. You're friendly and encouraging, especially to beginner cooks.",
+      "modules": ["recipes"],
+      "gather": {
+        "recipes": ["favorites", "recent"]
+      },
+      "keywords": ["recipe", "cook", "meal", "food", "ingredient"]
+    },
+    {
+      "name": "meal_planner",
+      "display_name": "Meal Planner",
+      "persona": "You help users plan their meals for the week. You consider nutritional balance, variety, and the user's preferences and schedule.",
+      "modules": ["recipes"],
+      "gather": {
+        "recipes": ["favorites"]
+      },
+      "keywords": ["meal plan", "weekly meals", "menu"]
+    }
+  ]
+}

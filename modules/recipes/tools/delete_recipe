@@ -1,0 +1,32 @@
+#!/bin/bash
+# Delete a recipe by name or slug
+# Uses: file.delete, file.exists, text.slugify primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+NAME=$(echo "$PARAMS" | jq -r '.name // empty')
+
+if [ -z "$NAME" ]; then
+    echo '{"error": "name is required"}' >&2
+    exit 3
+fi
+
+RECIPES_DIR="$HUB_USER_DATA/recipes"
+SLUG=$("$PRIM" text.slugify "$NAME")
+RECIPE_FILE="$RECIPES_DIR/${SLUG}.json"
+
+# Check if recipe exists
+if ! "$PRIM" file.exists "$RECIPE_FILE" >/dev/null 2>&1; then
+    echo "{\"error\": \"Recipe not found: $NAME\", \"slug\": \"$SLUG\"}" >&2
+    exit 1
+fi
+
+# Delete the recipe
+"$PRIM" file.delete "$RECIPE_FILE"
+
+echo "{\"success\": true, \"message\": \"Deleted recipe '$NAME'\", \"slug\": \"$SLUG\"}"

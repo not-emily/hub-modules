@@ -1,0 +1,74 @@
+#!/bin/bash
+# Search recipes by ingredient, tag, or text
+# Uses: file.list, file.read primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+QUERY=$(echo "$PARAMS" | jq -r '.query // empty')
+INGREDIENT=$(echo "$PARAMS" | jq -r '.ingredient // empty')
+TAG=$(echo "$PARAMS" | jq -r '.tag // empty')
+
+# Need at least one search parameter
+if [ -z "$QUERY" ] && [ -z "$INGREDIENT" ] && [ -z "$TAG" ]; then
+    echo '{"error": "Provide query, ingredient, or tag to search"}' >&2
+    exit 3
+fi
+
+RECIPES_DIR="$HUB_USER_DATA/recipes"
+
+if [ ! -d "$RECIPES_DIR" ]; then
+    echo '{"recipes": [], "count": 0, "message": "No recipes found"}'
+    exit 0
+fi
+
+# Normalize search terms to lowercase
+QUERY_LOWER=$(echo "$QUERY" | tr '[:upper:]' '[:lower:]')
+INGREDIENT_LOWER=$(echo "$INGREDIENT" | tr '[:upper:]' '[:lower:]')
+TAG_LOWER=$(echo "$TAG" | tr '[:upper:]' '[:lower:]')
+
+RESULTS="[]"
+COUNT=0
+
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+
+    RECIPE=$("$PRIM" file.read "$file")
+    MATCH=false
+
+    # Search by ingredient
+    if [ -n "$INGREDIENT_LOWER" ]; then
+        # Check if any ingredient contains the search term
+        INGREDIENTS_LOWER=$(echo "$RECIPE" | jq -r '.ingredients[]' | tr '[:upper:]' '[:lower:]')
+        if echo "$INGREDIENTS_LOWER" | grep -q "$INGREDIENT_LOWER"; then
+            MATCH=true
+        fi
+    fi
+
+    # Search by tag
+    if [ -n "$TAG_LOWER" ] && [ "$MATCH" = false ]; then
+        TAGS_LOWER=$(echo "$RECIPE" | jq -r '.tags[]' 2>/dev/null | tr '[:upper:]' '[:lower:]')
+        if echo "$TAGS_LOWER" | grep -q "$TAG_LOWER"; then
+            MATCH=true
+        fi
+    fi
+
+    # General text search (name, description, ingredients)
+    if [ -n "$QUERY_LOWER" ] && [ "$MATCH" = false ]; then
+        RECIPE_TEXT=$(echo "$RECIPE" | jq -r '[.name, .description, .ingredients[]] | join(" ")' | tr '[:upper:]' '[:lower:]')
+        if echo "$RECIPE_TEXT" | grep -q "$QUERY_LOWER"; then
+            MATCH=true
+        fi
+    fi
+
+    if [ "$MATCH" = true ]; then
+        RESULTS=$(echo "$RESULTS" | jq --argjson item "$RECIPE" '. + [$item]')
+        ((COUNT++)) || true
+    fi
+done < <("$PRIM" file.list "$RECIPES_DIR" "*.json" 2>/dev/null)
+
+echo "{\"recipes\": $RESULTS, \"count\": $COUNT, \"search\": {\"query\": \"$QUERY\", \"ingredient\": \"$INGREDIENT\", \"tag\": \"$TAG\"}}"

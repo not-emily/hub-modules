@@ -1,0 +1,54 @@
+#!/bin/bash
+# List all recipes (summary view)
+# Uses: file.list, file.read primitives
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+CATEGORY=$(echo "$PARAMS" | jq -r '.category // empty')
+
+RECIPES_DIR="$HUB_USER_DATA/recipes"
+
+# Check if recipes directory exists
+if [ ! -d "$RECIPES_DIR" ]; then
+    echo '{"recipes": [], "count": 0, "message": "No recipes found"}'
+    exit 0
+fi
+
+# Collect all recipes
+RECIPES="[]"
+COUNT=0
+
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+
+    RECIPE=$("$PRIM" file.read "$file")
+
+    # Filter by category if specified
+    if [ -n "$CATEGORY" ]; then
+        RECIPE_CAT=$(echo "$RECIPE" | jq -r '.category')
+        [ "$RECIPE_CAT" != "$CATEGORY" ] && continue
+    fi
+
+    # Extract summary fields
+    SUMMARY=$(echo "$RECIPE" | jq '{
+        name: .name,
+        slug: .slug,
+        category: .category,
+        tags: .tags,
+        prep_time: .prep_time,
+        cook_time: .cook_time
+    }')
+
+    RECIPES=$(echo "$RECIPES" | jq --argjson item "$SUMMARY" '. + [$item]')
+    ((COUNT++)) || true
+done < <("$PRIM" file.list "$RECIPES_DIR" "*.json" 2>/dev/null)
+
+# Sort by name
+RECIPES=$(echo "$RECIPES" | jq 'sort_by(.name)')
+
+echo "{\"recipes\": $RECIPES, \"count\": $COUNT}"

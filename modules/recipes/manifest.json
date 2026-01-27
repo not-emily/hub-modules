@@ -1,0 +1,231 @@
+{
+  "name": "recipes",
+  "version": "1.1.0",
+  "description": "Manage recipes, grocery lists, pantry, and meal planning",
+  "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"],
+  "entities": [
+    {
+      "name": "grocery_list",
+      "aliases": ["grocery list", "shopping list", "groceries", "the list"],
+      "actions": {
+        "add": "add_item",
+        "remove": "remove_item",
+        "list": "list_items",
+        "clear": "clear_list",
+        "check": "check_item"
+      }
+    },
+    {
+      "name": "recipes",
+      "aliases": ["recipe", "recipes", "dishes", "my recipes"],
+      "actions": {
+        "add": "add_recipe",
+        "list": "list_recipes",
+        "search": "search_recipes",
+        "get": "get_recipe",
+        "delete": "delete_recipe"
+      }
+    },
+    {
+      "name": "meal_plan",
+      "aliases": ["meal plan", "weekly meals", "menu", "meal schedule"],
+      "actions": {
+        "get": "get_meal_plan",
+        "set": "set_meal_plan",
+        "clear": "clear_meal_plan",
+        "list": "list_meal_plan"
+      }
+    },
+    {
+      "name": "pantry",
+      "aliases": ["pantry", "ingredients", "what i have", "kitchen stock"],
+      "actions": {
+        "add": "add_item",
+        "remove": "remove_item",
+        "list": "list_items",
+        "check": "check_item"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "add_item",
+      "description": "Add an item to a list (groceries or pantry)",
+      "params": [
+        {
+          "name": "item",
+          "type": "string",
+          "required": true,
+          "description": "The item to add"
+        },
+        {
+          "name": "entity",
+          "type": "string",
+          "default": "grocery_list",
+          "description": "Entity to add to (grocery_list or pantry)"
+        }
+      ]
+    },
+    {
+      "name": "list_items",
+      "description": "List all items in a list (groceries or pantry)",
+      "params": [
+        {
+          "name": "entity",
+          "type": "string",
+          "default": "grocery_list",
+          "description": "Entity to list (grocery_list or pantry)"
+        }
+      ]
+    },
+    {
+      "name": "remove_item",
+      "description": "Remove an item from a list",
+      "params": [
+        {
+          "name": "item",
+          "type": "string",
+          "required": true,
+          "description": "The item to remove"
+        },
+        {
+          "name": "entity",
+          "type": "string",
+          "default": "grocery_list",
+          "description": "Entity to remove from (grocery_list or pantry)"
+        }
+      ]
+    },
+    {
+      "name": "clear_list",
+      "description": "Clear all items from a list",
+      "params": [
+        {
+          "name": "entity",
+          "type": "string",
+          "default": "grocery_list",
+          "description": "Entity to clear (grocery_list or pantry)"
+        }
+      ]
+    },
+    {
+      "name": "add_recipe",
+      "description": "Add a new recipe to the collection",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Recipe name"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Brief description of the recipe"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "default": "main",
+          "description": "Recipe category (appetizer, main, side, dessert, beverage, snack, breakfast, sauce)"
+        },
+        {
+          "name": "ingredients",
+          "type": "array",
+          "description": "List of ingredients (e.g., ['400g pasta', '4 eggs'])"
+        },
+        {
+          "name": "instructions",
+          "type": "array",
+          "description": "Step-by-step instructions"
+        },
+        {
+          "name": "servings",
+          "type": "number",
+          "default": 4,
+          "description": "Number of servings"
+        },
+        {
+          "name": "prep_time",
+          "type": "number",
+          "description": "Preparation time in minutes"
+        },
+        {
+          "name": "cook_time",
+          "type": "number",
+          "description": "Cooking time in minutes"
+        },
+        {
+          "name": "tags",
+          "type": "array",
+          "description": "Tags for searching (e.g., ['italian', 'quick', 'vegetarian'])"
+        }
+      ]
+    },
+    {
+      "name": "get_recipe",
+      "description": "Look up a specific recipe by name (returns one result)",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Recipe name (supports fuzzy matching)"
+        }
+      ]
+    },
+    {
+      "name": "list_recipes",
+      "description": "List all recipes (summary view)",
+      "params": [
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Filter by category (appetizer, main, side, dessert, etc.)"
+        }
+      ]
+    },
+    {
+      "name": "search_recipes",
+      "description": "Search and browse recipes - find all matches by name, cuisine, ingredient, or keyword",
+      "params": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "General text search (searches name, description, ingredients)"
+        },
+        {
+          "name": "ingredient",
+          "type": "string",
+          "description": "Search by ingredient"
+        },
+        {
+          "name": "tag",
+          "type": "string",
+          "description": "Search by tag"
+        }
+      ]
+    },
+    {
+      "name": "delete_recipe",
+      "description": "Delete a recipe",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Recipe name to delete"
+        }
+      ]
+    }
+  ],
+  "fast_match": [
+    {"pattern": "add * to * list", "tool": "add_item"},
+    {"pattern": "add * to groceries", "tool": "add_item"},
+    {"pattern": "add * to pantry", "tool": "add_item"},
+    {"pattern": "what's on my * list", "tool": "list_items"},
+    {"pattern": "show my * list", "tool": "list_items"},
+    {"pattern": "remove * from * list", "tool": "remove_item"},
+    {"pattern": "clear * list", "tool": "clear_list"}
+  ]
+}

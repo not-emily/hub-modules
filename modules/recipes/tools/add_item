@@ -1,0 +1,38 @@
+#!/bin/bash
+# Add an item to a list
+# Uses: file.read, file.write primitives, data.json_transform utility
+# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES, HUB_UTILITIES
+
+set -e
+
+PRIM="$HUB_PRIMITIVES/hub-prim"
+UTIL="$HUB_UTILITIES/hub-util"
+
+# Parse params from JSON
+PARAMS="${HUB_PARAMS:-"{}"}"
+ITEM=$(echo "$PARAMS" | jq -r '.item // empty')
+ENTITY=$(echo "$PARAMS" | jq -r '.entity // "grocery_list"')
+
+if [ -z "$ITEM" ]; then
+    echo '{"error": "item is required"}' >&2
+    exit 3
+fi
+
+# Ensure data directory exists
+mkdir -p "$HUB_USER_DATA"
+
+# List file path
+LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"
+
+# Initialize list if it doesn't exist
+if ! "$PRIM" file.exists "$LIST_FILE" >/dev/null 2>&1; then
+    echo '{"items": []}' | "$PRIM" file.write "$LIST_FILE"
+fi
+
+# Read current list, transform to add item, write back
+CURRENT=$("$PRIM" file.read "$LIST_FILE")
+UPDATED=$(echo "$CURRENT" | "$UTIL" data.json_transform --query=".items += [\"$ITEM\"]" --raw)
+echo "$UPDATED" | "$PRIM" file.write "$LIST_FILE"
+
+# Output result
+echo "{\"success\": true, \"message\": \"Added '$ITEM' to $ENTITY\", \"item\": \"$ITEM\", \"entity\": \"$ENTITY\"}"
