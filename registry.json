@@ -4,6 +4,7 @@
     {
       "name": "recipes",
       "version": "1.1.0",
+      "release_tag": "recipes-v1.1.0",
       "description": "Manage recipes, grocery lists, pantry, and meal planning",
       "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"]
     }
