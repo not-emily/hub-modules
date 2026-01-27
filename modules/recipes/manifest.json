@@ -1,12 +1,23 @@
 {
   "name": "recipes",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Manage recipes, grocery lists, pantry, and meal planning",
   "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"],
   "entities": [
     {
-      "name": "grocery_list",
-      "aliases": ["grocery list", "shopping list", "groceries", "the list"],
+      "name": "sams_club_list",
+      "aliases": ["sam's club list", "sams club list", "sam's club", "sams club", "sams", "bulk list", "costco list"],
+      "actions": {
+        "add": "add_item",
+        "remove": "remove_item",
+        "list": "list_items",
+        "clear": "clear_list",
+        "check": "check_item"
+      }
+    },
+    {
+      "name": "smiths_list",
+      "aliases": ["smith's list", "smiths list", "smith's", "smiths", "grocery store list"],
       "actions": {
         "add": "add_item",
         "remove": "remove_item",
@@ -50,7 +61,7 @@
   "tools": [
     {
       "name": "add_item",
-      "description": "Add an item to a list (groceries or pantry)",
+      "description": "Add an item to a store list or pantry",
       "params": [
         {
           "name": "item",
@@ -61,20 +72,18 @@
         {
           "name": "entity",
           "type": "string",
-          "default": "grocery_list",
-          "description": "Entity to add to (grocery_list or pantry)"
+          "description": "Which list to add to (sams_club_list, smiths_list, or pantry)"
         }
       ]
     },
     {
       "name": "list_items",
-      "description": "List all items in a list (groceries or pantry)",
+      "description": "List all items in a list",
       "params": [
         {
           "name": "entity",
           "type": "string",
-          "default": "grocery_list",
-          "description": "Entity to list (grocery_list or pantry)"
+          "description": "Which list to show (sams_club_list, smiths_list, or pantry)"
         }
       ]
     },
@@ -91,8 +100,7 @@
         {
           "name": "entity",
           "type": "string",
-          "default": "grocery_list",
-          "description": "Entity to remove from (grocery_list or pantry)"
+          "description": "Which list to remove from (sams_club_list, smiths_list, or pantry)"
         }
       ]
     },
@@ -103,8 +111,7 @@
         {
           "name": "entity",
           "type": "string",
-          "default": "grocery_list",
-          "description": "Entity to clear (grocery_list or pantry)"
+          "description": "Which list to clear (sams_club_list, smiths_list, or pantry)"
         }
       ]
     },
@@ -221,7 +228,8 @@
   ],
   "fast_match": [
     {"pattern": "add * to * list", "tool": "add_item"},
-    {"pattern": "add * to groceries", "tool": "add_item"},
+    {"pattern": "add * to sams", "tool": "add_item"},
+    {"pattern": "add * to smiths", "tool": "add_item"},
     {"pattern": "add * to pantry", "tool": "add_item"},
     {"pattern": "what's on my * list", "tool": "list_items"},
     {"pattern": "show my * list", "tool": "list_items"},

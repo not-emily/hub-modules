@@ -9,7 +9,12 @@ PRIM="$HUB_PRIMITIVES/hub-prim"
 
 # Parse params from JSON
 PARAMS="${HUB_PARAMS:-"{}"}"
-ENTITY=$(echo "$PARAMS" | jq -r '.entity // "grocery_list"')
+ENTITY=$(echo "$PARAMS" | jq -r '.entity // empty')
+
+if [ -z "$ENTITY" ]; then
+    echo '{"error": "Please specify which list: sams_club_list, smiths_list, or pantry"}' >&2
+    exit 3
+fi
 
 # List file path
 LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"

@@ -11,10 +11,15 @@ UTIL="$HUB_UTILITIES/hub-util"
 # Parse params from JSON
 PARAMS="${HUB_PARAMS:-"{}"}"
 ITEM=$(echo "$PARAMS" | jq -r '.item // empty')
-ENTITY=$(echo "$PARAMS" | jq -r '.entity // "grocery_list"')
+ENTITY=$(echo "$PARAMS" | jq -r '.entity // empty')
 
 if [ -z "$ITEM" ]; then
     echo '{"error": "item is required"}' >&2
+    exit 3
+fi
+
+if [ -z "$ENTITY" ]; then
+    echo '{"error": "Please specify which list: sams_club_list, smiths_list, or pantry"}' >&2
     exit 3
 fi
 
