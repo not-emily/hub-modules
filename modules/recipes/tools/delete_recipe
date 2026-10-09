@@ -1,7 +1,7 @@
 #!/bin/bash
 # Delete a recipe by name or slug
 # Uses: file.delete, file.exists, text.slugify primitives
-# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+# Environment: HUB_MODULE_DATA, HUB_PARAMS, HUB_PRIMITIVES
 
 set -e
 
@@ -16,7 +16,7 @@ if [ -z "$NAME" ]; then
     exit 3
 fi
 
-RECIPES_DIR="$HUB_USER_DATA/recipes"
+RECIPES_DIR="$HUB_MODULE_DATA/recipes"
 SLUG=$("$PRIM" text.slugify "$NAME")
 RECIPE_FILE="$RECIPES_DIR/${SLUG}.json"
 

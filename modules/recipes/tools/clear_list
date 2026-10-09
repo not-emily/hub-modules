@@ -1,7 +1,7 @@
 #!/bin/bash
 # Clear all items from a list
 # Uses: file.write primitive
-# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+# Environment: HUB_MODULE_DATA, HUB_PARAMS, HUB_PRIMITIVES
 
 set -e
 
@@ -17,10 +17,10 @@ if [ -z "$ENTITY" ]; then
 fi
 
 # List file path
-LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"
+LIST_FILE="$HUB_MODULE_DATA/${ENTITY}.json"
 
 # Ensure data directory exists
-mkdir -p "$HUB_USER_DATA"
+mkdir -p "$HUB_MODULE_DATA"
 
 # Clear the list using file.write primitive
 echo '{"items": []}' | "$PRIM" file.write "$LIST_FILE"

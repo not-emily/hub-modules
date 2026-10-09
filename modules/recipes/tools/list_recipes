@@ -1,7 +1,7 @@
 #!/bin/bash
 # List all recipes (summary view)
 # Uses: file.list, file.read primitives
-# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+# Environment: HUB_MODULE_DATA, HUB_PARAMS, HUB_PRIMITIVES
 
 set -e
 
@@ -11,7 +11,7 @@ PRIM="$HUB_PRIMITIVES/hub-prim"
 PARAMS="${HUB_PARAMS:-"{}"}"
 CATEGORY=$(echo "$PARAMS" | jq -r '.category // empty')
 
-RECIPES_DIR="$HUB_USER_DATA/recipes"
+RECIPES_DIR="$HUB_MODULE_DATA/recipes"
 
 # Check if recipes directory exists
 if [ ! -d "$RECIPES_DIR" ]; then

@@ -1,7 +1,7 @@
 #!/bin/bash
 # List all items in a list
 # Uses: file.exists, file.read primitives
-# Environment: HUB_USER_DATA, HUB_PARAMS, HUB_PRIMITIVES
+# Environment: HUB_MODULE_DATA, HUB_PARAMS, HUB_PRIMITIVES
 
 set -e
 
@@ -17,7 +17,7 @@ if [ -z "$ENTITY" ]; then
 fi
 
 # List file path
-LIST_FILE="$HUB_USER_DATA/${ENTITY}.json"
+LIST_FILE="$HUB_MODULE_DATA/${ENTITY}.json"
 
 # Check if list exists
 if ! "$PRIM" file.exists "$LIST_FILE" >/dev/null 2>&1; then
