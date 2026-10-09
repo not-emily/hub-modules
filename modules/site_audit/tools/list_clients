@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""site_audit.list_clients -- every website on the audit roster, in summary."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+clients = []
+for slug, record in sa.all_clients():
+    dates = sa.run_dates(slug)
+    last = sa.read_run(slug, dates[0]) if dates else None
+    clients.append(
+        {
+            "slug": slug,
+            "name": record.get("name") or slug,
+            "base_url": record.get("base_url") or "",
+            "page_count": len(record.get("pages") or []),
+            "crawl": bool(record.get("crawl", True)),
+            "run_count": len(dates),
+            "last_run": dates[0] if dates else None,
+            "last_status": (last or {}).get("status"),
+        }
+    )
+
+if not clients:
+    sa.ok(
+        "No audit clients yet. add_client puts the first one on the roster",
+        clients=[],
+        count=0,
+    )
+
+sa.ok(clients=clients, count=len(clients))

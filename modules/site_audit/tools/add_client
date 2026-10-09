@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""site_audit.add_client -- put a website on the audit roster."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+
+# `item` is what the intent matcher extracts from "add X to my audit clients".
+name = str(values.get("name") or values.get("item") or "").strip()
+if not name:
+    sa.fail("name is required", sa.EXIT_USAGE)
+
+base_url = sa.require_url(values.get("base_url"), "base_url").rstrip("/")
+
+slug = sa.slugify(values.get("slug") or name)
+if not slug:
+    sa.fail(
+        "No slug could be derived from that name — give one explicitly",
+        sa.EXIT_USAGE,
+        name=name,
+    )
+
+path = sa.client_path(slug)
+if path.exists():
+    sa.fail(
+        f"An audit client '{slug}' already exists",
+        sa.EXIT_USAGE,
+        slug=slug,
+        hint="update_client changes it, remove_client takes it off the roster",
+    )
+
+record = {
+    "name": name,
+    "base_url": base_url,
+    "cloudflare_project": sa.require_project(
+        values.get("cloudflare_project") or f"{slug}-audit"
+    ),
+    "crawl": sa.as_bool(values.get("crawl", True), "crawl"),
+    "crawl_depth": sa.as_int(values.get("crawl_depth", 3), "crawl_depth", minimum=1),
+    "deep_dive": sa.as_bool(values.get("deep_dive", False), "deep_dive"),
+    "notes": str(values.get("notes") or ""),
+    "pages": [],
+    "created_at": sa.now(),
+}
+
+branch = str(values.get("cloudflare_production_branch") or "").strip()
+if branch:
+    record["cloudflare_production_branch"] = branch
+
+sa.save_client(slug, record)
+
+sa.ok(
+    f"Added '{name}' to the audit roster as {slug}. Add the pages to score with add_page",
+    slug=slug,
+    client=record,
+    file=str(path),
+)

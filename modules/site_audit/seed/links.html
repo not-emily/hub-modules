@@ -1,0 +1,201 @@
+---
+layout: default
+title: Links
+permalink: /links/
+---
+
+{% assign audit = site.data.audit %}
+{% assign links = site.data.links %}
+
+<h1>Links</h1>
+
+{% comment %}
+  Guarded in full. A run without a crawl still scaffolds this file — the seed
+  is copied wholesale — so the page has to be honest about having nothing
+  rather than rendering empty sections. The nav hides it in that case, but a
+  bookmarked URL must not lead somewhere broken in a report about broken links.
+{% endcomment %}
+{% if links.crawled != true %}
+
+  <p class="lede">This audit did not include a link crawl.</p>
+  <p class="scope-note">
+    Link checking is a separate pass over the whole site, run alongside the
+    page scans. It was not part of this audit.
+  </p>
+
+{% else %}
+
+{% comment %}
+  Three shapes, because "0 are broken" is not a sentence anyone writes. A clean
+  result should read as a result, not as an empty count.
+{% endcomment %}
+<p class="lede">
+  {% if links.broken.count == 0 %}
+    Every link found on the site was checked, and none of them are broken.
+    {% if links.unverifiable.count > 0 %}
+      {{ links.unverifiable.count }} could not be confirmed either way — those
+      are listed below, and are usually not faults.
+    {% endif %}
+  {% else %}
+    Every link found on the site, checked.
+    {{ links.broken.count }} {% if links.broken.count == 1 %}is{% else %}are{% endif %} broken{% if links.unverifiable.count > 0 %},
+    and {{ links.unverifiable.count }} could not be confirmed either way{% endif %}.
+  {% endif %}
+</p>
+
+{% comment %}
+  A crawl that was cut short must say so before any number is read, not in a
+  footnote after them. Same reasoning as the scope note on the Overview.
+{% endcomment %}
+{% if links.blocked %}
+  <div class="callout callout-warn">
+    <p><strong>This crawl was stopped early.</strong> The site stopped
+    responding to the checker partway through — usually a firewall rate limit
+    rather than a fault. The findings below are real, but they are not the
+    whole picture.</p>
+  </div>
+{% endif %}
+
+<ul class="coverage">
+  <li>
+    <span class="coverage-static">
+      <span class="coverage-value">{{ links.pages_crawled }}</span>
+      <span class="coverage-label">page{% if links.pages_crawled != 1 %}s{% endif %} crawled</span>
+    </span>
+  </li>
+  <li>
+    <span class="coverage-static">
+      <span class="coverage-value">{{ links.urls_checked }}</span>
+      <span class="coverage-label">link{% if links.urls_checked != 1 %}s{% endif %} checked</span>
+    </span>
+  </li>
+  <li>
+    <span class="coverage-static">
+      <span class="coverage-value{% if links.broken.count > 0 %} is-poor{% endif %}">{{ links.broken.count }}</span>
+      <span class="coverage-label">broken</span>
+    </span>
+  </li>
+  <li>
+    <span class="coverage-static">
+      <span class="coverage-value">{{ links.redirect.count }}</span>
+      <span class="coverage-label">redirect{% if links.redirect.count != 1 %}s{% endif %}</span>
+    </span>
+  </li>
+</ul>
+
+{% comment %}
+  The download is the working artifact — someone fixes links in a CMS, not in
+  a browser tab. The row-count difference between this page and the file is
+  explained rather than left to be discovered: they answer different questions.
+{% endcomment %}
+{% if links.csv_rows > 0 %}
+  <p class="download">
+    <a class="download-link" href="{{ links.csv_path | relative_url }}" download>
+      {% include icon.html name="arrow-right" %} Download the worklist (CSV, {{ links.csv_rows }} rows)
+    </a>
+    <span class="muted small">
+      One row per place each link appears, so it can be worked through page by
+      page. This page groups by link instead — a link in a shared template is
+      one fix, however many pages carry it.
+    </span>
+  </p>
+{% endif %}
+
+{% comment %} ---- broken: internal ---- {% endcomment %}
+{% if links.broken.internal_count > 0 %}
+  <h2>Broken links on this site</h2>
+  <p class="muted">
+    These point at pages on {{ audit.base_url | escape }} that no longer exist.
+    Every one was checked twice, the second time after a pause, to rule out a
+    temporary fault.
+  </p>
+  {% for link in links.broken.internal %}
+    {% include link-finding.html link=link %}
+  {% endfor %}
+{% endif %}
+
+{% comment %} ---- broken: external ---- {% endcomment %}
+{% if links.broken.external_count > 0 %}
+  <h2>Broken links to other sites</h2>
+  <p class="muted">
+    These point somewhere off {{ audit.base_url | escape }}. The fix is on this
+    site — update or remove the link — but the page that disappeared belongs to
+    someone else.
+  </p>
+  {% for link in links.broken.external %}
+    {% include link-finding.html link=link %}
+  {% endfor %}
+{% endif %}
+
+{% if links.broken.count == 0 %}
+  <h2>Broken links</h2>
+  <p class="muted">None found. Every link the crawl reached resolved to a
+  working page.</p>
+{% endif %}
+
+{% comment %}
+  ---- unverifiable ----
+  The section that keeps the report honest. A 403 from a firewall, a login
+  wall, or a site that rate-limits automated checkers is not a dead link, and
+  saying so here is the difference between a report that can be trusted and one
+  that cries wolf.
+{% endcomment %}
+{% if links.unverifiable.count > 0 %}
+  <h2>Links we could not confirm</h2>
+  <p class="muted">
+    These did not return a clean answer. That is usually the other end blocking
+    automated checkers, requiring a sign-in, or being slow — not a broken link.
+    <strong>They are listed for completeness, not as defects.</strong> Worth a
+    quick manual click if any of them matter.
+  </p>
+  {% for link in links.unverifiable.internal %}
+    {% include link-finding.html link=link %}
+  {% endfor %}
+  {% for link in links.unverifiable.external %}
+    {% include link-finding.html link=link %}
+  {% endfor %}
+{% endif %}
+
+{% comment %} ---- redirects ---- {% endcomment %}
+{% if links.redirect.internal_count > 0 %}
+  <h2>Links that redirect</h2>
+  <p class="muted">
+    These work, so nothing here is urgent. Pointing internal links straight at
+    the final address saves a round trip and passes ranking signals more
+    directly — worth tidying when the template is next touched.
+  </p>
+  {% for link in links.redirect.internal %}
+    {% include link-finding.html link=link %}
+  {% endfor %}
+{% endif %}
+
+{% comment %} ---- coverage ---- {% endcomment %}
+<h2>What was checked</h2>
+<p class="muted">{{ links.coverage_note }}</p>
+
+{% if links.sitemap_found and links.sitemap_not_reached > 0 %}
+  <p class="muted">
+    {% if links.sitemap_depth_limited %}
+      Those {{ links.sitemap_not_reached }} pages
+      {%- if links.sitemap_not_reached_sampled %} are
+      {%- else %} were still checked, they are
+      {%- endif %} simply further from the audited pages than the crawl went.
+      Content that takes more than {{ links.depth }}
+      click{% if links.depth != 1 %}s{% endif %} to reach tends to get less
+      attention from both readers and search engines.
+    {% else %}
+      Nothing on the site links to those {{ links.sitemap_not_reached }} pages,
+      so a visitor can only arrive at them from search or a direct link.
+    {% endif %}
+  </p>
+{% endif %}
+
+{% if links.unchecked_count > 0 %}
+  <p class="muted">
+    {{ links.unchecked_count }} further link{% if links.unchecked_count != 1 %}s were{% else %} was{% endif %}
+    found but never checked, because the crawl stopped early. They are not
+    counted above as either working or broken.
+  </p>
+{% endif %}
+
+{% endif %}

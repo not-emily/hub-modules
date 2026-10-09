@@ -1,0 +1,26 @@
+{%- comment -%}
+Severity label — icon plus word, used wherever an axe impact is shown.
+
+  {% include severity-label.html impact=a.impact %}
+  {% include severity-label.html impact="" text="none" %}
+
+  include.impact — critical | serious | moderate | minor | "" (unrated)
+  include.text   — optional override for the visible word
+
+The icon was previously a CSS ::before, which meant the glyph could not vary by
+level and was invisible to anything reading the markup. Here the shape carries
+the level alongside the colour.
+{%- endcomment -%}
+{%- assign sev = include.impact -%}
+{%- case sev -%}
+  {%- when 'critical' -%}{%- assign ico = 'octagon' -%}
+  {%- when 'serious' -%}{%- assign ico = 'triangle' -%}
+  {%- when 'moderate' -%}{%- assign ico = 'circle-exclamation' -%}
+  {%- when 'minor' -%}{%- assign ico = 'exclamation' -%}
+  {%- else -%}{%- assign ico = 'circle' -%}{%- assign sev = '' -%}
+{%- endcase -%}
+{%- if sev == '' -%}{%- assign cls = 'none' -%}{%- else -%}{%- assign cls = sev -%}{%- endif -%}
+{%- if include.text -%}{%- assign word = include.text -%}
+{%- elsif sev == '' -%}{%- assign word = 'unrated' -%}
+{%- else -%}{%- assign word = sev -%}{%- endif -%}
+<span class="impact impact-{{ cls }}">{% include icon.html name=ico %} {{ word }}</span>

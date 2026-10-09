@@ -1,0 +1,113 @@
+{%- comment -%}
+One link finding, in the same card shape as an issue.
+
+Deliberately the issue card rather than a table row. A URL is long, wraps
+unpredictably, and is the identifier here — the thing you copy and search for
+— so it needs room to be a heading rather than a cell squeezed beside three
+other columns. Grouping the pages underneath in a disclosure is the same
+pattern the Issues page uses, and for the same reason: one link in a shared
+template is one fix, not one fix per page carrying it.
+
+  include.link — one entry from site.data.links.<bucket>.<internal|external>
+{%- endcomment -%}
+{%- assign l = include.link -%}
+<article class="issue link-finding">
+  <div class="issue-head">
+    {%- comment -%}
+      The URL is the heading, and it is not a link. Making a known-broken URL
+      clickable invites a click that lands on the 404 the report is about; the
+      live-check control below is labelled for anyone who does want to see it.
+    {%- endcomment -%}
+    <h3 class="link-url">{{ l.url | escape }}</h3>
+
+    <p class="issue-meta">
+      {%- comment -%}
+        Status carries an icon as well as a colour, so the three outcomes stay
+        distinguishable in greyscale — the same rule the score and severity
+        vocabularies follow. Outlined chip rather than a filled score pill:
+        link status is a third measure and must not be read as either of the
+        other two.
+      {%- endcomment -%}
+      {%- case l.bucket -%}
+        {%- when 'broken' -%}{%- assign ico = 'times' -%}
+        {%- when 'unverifiable' -%}{%- assign ico = 'circle-exclamation' -%}
+        {%- else -%}{%- assign ico = 'arrow-right' -%}
+      {%- endcase -%}
+      <span class="factor link-status link-{{ l.bucket }}">
+        {% include icon.html name=ico %} {{ l.status_label }}
+      </span>
+      {% if l.anchor and l.anchor != "" %}
+        <span class="link-anchor">linked as &ldquo;{{ l.anchor | escape | truncate: 70 }}&rdquo;</span>
+      {% endif %}
+      {%- comment -%}
+        "0 places" is not a fact anyone needs stated. A URL with no referrers
+        was reached from the sitemap, and saying *that* is the useful version —
+        it means the site publishes the page to search engines while linking to
+        it from nowhere.
+      {%- endcomment -%}
+      {% if l.referrer_count > 0 %}
+        <span>{{ l.referrer_count }} place{% if l.referrer_count != 1 %}s{% endif %}</span>
+      {% elsif l.in_sitemap %}
+        <span class="factor">in the sitemap, linked from nowhere</span>
+      {% endif %}
+      {% unless l.internal %}<span class="factor">external</span>{% endunless %}
+      {% if l.recheck_inconclusive %}
+        {%- comment -%}
+          The first check was clean; the confirming re-check could not get
+          through. The finding stands on the first result, and saying so is
+          more useful than quietly presenting it as doubly confirmed.
+        {%- endcomment -%}
+        <span class="factor" title="The confirming re-check could not reach this URL — the finding rests on the original check.">not re-confirmed</span>
+      {% endif %}
+      <a href="{{ l.url | escape }}" target="_blank" rel="noopener nofollow">Check it yourself {% include icon-external.html %}<span class="sr-only">, opens {{ l.url | escape }} in a new tab</span></a>
+    </p>
+  </div>
+
+  {% if l.referrers.size > 0 %}
+    <details>
+      <summary>{% include icon.html name="chevron" class="disclosure" %}Where it appears{% if l.referrers_truncated %} (first {{ l.referrers.size }} of {{ l.referrer_count }}){% else %} ({{ l.referrers.size }}){% endif %}</summary>
+      <div class="table-scroll" style="margin:0 1.15rem 1rem">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Page</th>
+              <th scope="col">Link text</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ref in l.referrers %}
+              <tr>
+                <th scope="row">
+                  {%- comment -%}
+                    Audited pages link to their own report page; everything
+                    else is a plain URL, because there is no report page to
+                    send anyone to.
+                  {%- endcomment -%}
+                  {% if ref.audited %}
+                    <a href="{{ '/pages/' | append: ref.slug | append: '/' | relative_url }}">{{ ref.label | escape }}</a>
+                  {% else %}
+                    <span class="link-ref-url">{{ ref.url | escape }}</span>
+                  {% endif %}
+                </th>
+                <td>
+                  {% if ref.anchor and ref.anchor != "" %}
+                    &ldquo;{{ ref.anchor | escape | truncate: 90 }}&rdquo;
+                  {% else %}
+                    <span class="muted">no link text</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if l.referrers_truncated %}
+        <p class="muted small" style="margin:0 1.15rem 1rem">
+          This link appears in {{ l.referrer_count }} places in total — almost
+          certainly a shared template rather than {{ l.referrer_count }}
+          separate edits. The CSV lists the first {{ l.referrers.size }}.
+        </p>
+      {% endif %}
+    </details>
+  {% endif %}
+</article>

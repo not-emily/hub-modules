@@ -1,0 +1,192 @@
+---
+layout: default
+title: Pages
+permalink: /pages/
+---
+
+{% assign audit = site.data.audit %}
+{% assign summary = site.data.summary %}
+
+<h1>Pages</h1>
+
+{% comment %}
+  Two tables under one heading, because "Pages" means different things
+  depending on what the run captured.
+
+  With scores: the audited sample, ranked by how much work each needs.
+  Without: the crawl inventory — every page the crawl reached. That is the more
+  useful view for a link audit anyway, and it needs no extra capture, since
+  depth and outbound counts are already in the archive.
+{% endcomment %}
+{% if audit.has_lighthouse == false %}
+
+  {% assign links = site.data.links %}
+  <p class="lede">
+    Every page the crawl reached, pages with problem links first.
+  </p>
+
+  {% if links.crawled and links.pages.size > 0 %}
+    <div class="table-scroll">
+      <table>
+        <caption>
+          Reached by following links from the {{ links.seed_count }}
+          starting page{% if links.seed_count != 1 %}s{% endif %} in this
+          client's configuration, up to {{ links.depth }}
+          click{% if links.depth != 1 %}s{% endif %} away.
+          Depth is the fewest clicks from a starting page.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Page</th>
+            <th scope="col" style="text-align:right">Depth</th>
+            {% if links.has_outbound_counts %}
+              <th scope="col" style="text-align:right">Links out</th>
+            {% endif %}
+            <th scope="col" style="text-align:right">Problems</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pg in links.pages %}
+            <tr>
+              <th scope="row" class="page-cell">
+                {% if pg.audited %}
+                  <a class="page-name" href="{{ '/pages/' | append: pg.slug | append: '/' | relative_url }}">{{ pg.label | escape }}</a>
+                  <span class="page-path">{{ pg.path | escape }}<a class="live-link" href="{{ pg.url | escape }}" target="_blank" rel="noopener">{% include icon-external.html %}<span class="sr-only">Open {{ pg.label | escape }} on the live site, opens in a new tab</span></a></span>
+                {% else %}
+                  {%- comment -%}
+                    Crawled but not one of the configured pages, so there is no
+                    report page to link to — only the live one.
+                  {%- endcomment -%}
+                  <a class="page-name" href="{{ pg.url | escape }}" target="_blank" rel="noopener">{{ pg.path | escape }} {% include icon-external.html %}<span class="sr-only">, opens in a new tab</span></a>
+                {% endif %}
+              </th>
+              <td class="num">{{ pg.depth }}</td>
+              {% if links.has_outbound_counts %}
+                <td class="num">{{ pg.outbound_total }}</td>
+              {% endif %}
+              <td class="num">
+                {% if pg.problems > 0 %}
+                  <span class="factor link-status link-broken">{{ pg.problems }}</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">
+      {{ links.pages.size }} page{% if links.pages.size != 1 %}s{% endif %} crawled,
+      {{ links.pages_with_problems }} with at least one link that did not
+      resolve cleanly. Full detail on the
+      <a href="{{ '/links/' | relative_url }}">Links</a> page.
+    </p>
+  {% else %}
+    <p class="muted">No crawl data in this run.</p>
+  {% endif %}
+
+{% else %}
+
+<p class="lede">
+  Every page scanned, highest priority first. Open one to see each failing element marked
+  on a screenshot.
+</p>
+
+{% comment %}
+  Deliberately not a second scoreboard. The Overview already carries every
+  category score per page; repeating a slice of that here added nothing. This
+  table answers the other question: which pages need attention, how much, and
+  what kind of work it is.
+
+  Counts are deduped across form factors — a check failing on both mobile and
+  desktop is one thing to fix, not two.
+{% endcomment %}
+<div class="table-scroll">
+  <table>
+    <caption>
+      {% comment %}
+        Kept deliberately short. Two facts stop the table being misread — that
+        findings include opportunities, and that severity is accessibility-only
+        — and everything else was explaining reasoning that belongs in comments,
+        not in front of the client.
+      {% endcomment %}
+      Findings combine failing checks and improvement opportunities across
+      {{ audit.strategies | join: " and " }}. Severity applies to accessibility
+      only.
+      <span class="sev-legend">
+        <span class="factor sev-critical">{% include icon.html name="octagon" %} critical</span>
+        <span class="factor sev-serious">{% include icon.html name="triangle" %} serious</span>
+        <span class="factor sev-moderate">{% include icon.html name="circle-exclamation" %} moderate</span>
+        <span class="factor sev-minor">{% include icon.html name="exclamation" %} minor</span>
+      </span>
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col">Page</th>
+        <th scope="col">Findings</th>
+        <th scope="col">Lowest scoring</th>
+        <th scope="col" style="text-align:right">Elements</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% assign base = audit.base_url %}
+      {% assign ranked = summary.pages | sort: "triage_rank" %}
+      {% for p in ranked %}
+        <tr>
+          <th scope="row" class="page-cell">
+            {% include page-cell.html page=p base_url=base %}
+          </th>
+          <td>
+            <span class="check-total">{{ p.finding_count }}</span>
+            {% for c in p.findings_by_category %}
+              {% comment %}
+                Only accessibility audits carry a severity: Lighthouse gets
+                impact from axe-core, which it runs for that category alone.
+                A grey "unrated" icon on every other chip read as missing data,
+                so unrated categories simply carry no severity mark.
+              {% endcomment %}
+              {% case c.impact %}
+                {% when 'critical' %}{% assign g = 'octagon' %}
+                {% when 'serious' %}{% assign g = 'triangle' %}
+                {% when 'moderate' %}{% assign g = 'circle-exclamation' %}
+                {% when 'minor' %}{% assign g = 'exclamation' %}
+                {% else %}{% assign g = '' %}
+              {% endcase %}
+              {% assign sev = c.impact | default: 'none' %}
+              <span class="factor sev-{{ sev }}"
+                    title="{{ c.label }}: {{ c.count }} failing{% if g != '' %}, severity {{ c.impact }}{% endif %}">
+                {% if g != '' %}{% include icon.html name=g %}{% endif %} {{ c.short }} {{ c.count }}
+                <span class="sr-only">{{ c.label }}, {{ c.count }} failing{% if g != '' %}, severity {{ c.impact }}{% endif %}</span>
+              </span>
+            {% endfor %}
+          </td>
+          <td>
+            {% comment %}
+              Both form factors, each labelled. The bare "/ 91" gave no clue
+              which factor it belonged to, and the gap is the finding: a 41 on
+              mobile beside a 91 on desktop is a mobile problem, not a site-wide
+              one. Scoring the second one too makes that contrast visible.
+            {% endcomment %}
+            {% if p.worst_score == nil %}
+              <span class="muted">—</span>
+            {% else %}
+              <span class="worst-score">
+                <span class="worst-score-cat" title="{{ p.worst_score_key }}">{{ p.worst_score_short }}</span>
+                {% include score-badge.html score=p.worst_score label=p.worst_score_key suffix=p.worst_score_strategy %}
+                {% if p.worst_score_other %}
+                  {% include score-badge.html score=p.worst_score_other label=p.worst_score_key suffix=p.worst_score_other_strategy %}
+                {% endif %}
+              </span>
+            {% endif %}
+          </td>
+          <td class="num">
+            {% if p.element_count > 0 %}{{ p.element_count }}{% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}{% comment %} end has_lighthouse: Pages is scores or inventory {% endcomment %}

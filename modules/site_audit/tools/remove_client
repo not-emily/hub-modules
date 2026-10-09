@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""site_audit.remove_client -- take a website off the audit roster.
+
+Past runs outlive the client unless delete_runs says otherwise, since the
+history is the expensive part to rebuild.
+"""
+
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+slug, record = sa.resolve_client(sa.client_identifier(values, ("client", "slug")))
+
+delete_runs = sa.as_bool(values.get("delete_runs", False), "delete_runs")
+
+dates = sa.run_dates(slug)
+runs_root = sa.client_runs_dir(slug)
+
+reclaimed = 0
+if delete_runs and runs_root.is_dir():
+    reclaimed = sa.dir_bytes(runs_root)
+    try:
+        shutil.rmtree(runs_root)
+    except OSError as exc:
+        sa.fail(f"Could not delete runs for {slug}: {exc}", sa.EXIT_ERROR)
+
+path = sa.client_path(slug)
+try:
+    path.unlink()
+except OSError as exc:
+    sa.fail(f"Could not remove {slug}: {exc}", sa.EXIT_ERROR)
+
+name = record.get("name") or slug
+if delete_runs:
+    message = f"Removed '{name}' and its {len(dates)} recorded run(s)"
+else:
+    message = f"Removed '{name}'. Its {len(dates)} recorded run(s) were kept"
+
+sa.ok(
+    message,
+    slug=slug,
+    runs_deleted=len(dates) if delete_runs else 0,
+    runs_kept=0 if delete_runs else len(dates),
+    bytes_reclaimed=reclaimed,
+)

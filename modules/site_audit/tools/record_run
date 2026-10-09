@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""site_audit.record_run -- create or advance the record of an audit run.
+
+A run is written several times across its life: the audit workflow kicks work
+and exits, and a later sweep finishes it. So this merges rather than replaces —
+a caller reports what it learned without having to resend what it didn't.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+SCALARS = ("status", "crawl_job_id", "deployed_url", "error", "notes")
+
+values = sa.params()
+client_slug, _ = sa.resolve_client(sa.client_identifier(values, ("client", "slug")))
+
+date = sa.require_date(values["date"]) if "date" in values else sa.today()
+
+record = sa.read_run(client_slug, date)
+created = record is None
+if created:
+    record = {"client": client_slug, "date": date, "started_at": sa.now()}
+
+if "status" in values and str(values["status"]) not in sa.STATUSES:
+    sa.fail(
+        f"'{values['status']}' is not an audit run status",
+        sa.EXIT_USAGE,
+        allowed=list(sa.STATUSES),
+    )
+
+written = []
+
+for field in SCALARS:
+    if field in values:
+        record[field] = str(values[field])
+        written.append(field)
+
+if "status" in values:
+    # Stamped here rather than passed, so a finished run cannot claim it is
+    # still going.
+    if record["status"] in sa.TERMINAL_STATES:
+        record["finished_at"] = sa.now()
+        written.append("finished_at")
+    else:
+        record.pop("finished_at", None)
+
+if "complete" in values:
+    record["complete"] = sa.as_bool(values["complete"], "complete")
+    written.append("complete")
+
+# Arrays union and objects merge, because a run accumulates: scores land per
+# page and the crawl archive arrives long after the rest.
+if "archives" in values:
+    incoming = values["archives"]
+    if not isinstance(incoming, list):
+        sa.fail("archives must be an array of filenames", sa.EXIT_USAGE)
+    merged = list(record.get("archives") or [])
+    for name in incoming:
+        name = str(name).strip()
+        if name and name not in merged:
+            merged.append(name)
+    record["archives"] = merged
+    written.append("archives")
+
+for field in ("scores", "sitemap"):
+    if field in values:
+        incoming = values[field]
+        if not isinstance(incoming, dict):
+            sa.fail(f"{field} must be an object", sa.EXIT_USAGE)
+        merged = dict(record.get(field) or {})
+        merged.update(incoming)
+        record[field] = merged
+        written.append(field)
+
+# A snapshot, so this replaces where the two above merge. Empty clears it.
+if "progress" in values:
+    incoming = values["progress"]
+    if not isinstance(incoming, dict):
+        sa.fail("progress must be an object", sa.EXIT_USAGE)
+    if incoming:
+        record["progress"] = dict(incoming, at=sa.now())
+    else:
+        record.pop("progress", None)
+    written.append("progress")
+
+# A snapshot too, so a page that scores on a later pass stops being listed.
+if "scan_failures" in values:
+    incoming = values["scan_failures"]
+    if not isinstance(incoming, list):
+        sa.fail("scan_failures must be an array of messages", sa.EXIT_USAGE)
+    if incoming:
+        record["scan_failures"] = [str(item) for item in incoming]
+    else:
+        record.pop("scan_failures", None)
+    written.append("scan_failures")
+
+if not written:
+    sa.fail(
+        "Nothing to record — give at least one field",
+        sa.EXIT_USAGE,
+        client=client_slug,
+        date=date,
+    )
+
+record["updated_at"] = sa.now()
+sa.write_json(sa.run_record_path(client_slug, date), record)
+
+sa.ok(
+    f"{'Recorded' if created else 'Updated'} the {date} run for {client_slug}",
+    client=client_slug,
+    date=date,
+    created=created,
+    written=written,
+    run=record,
+    directory=str(sa.run_dir(client_slug, date)),
+)

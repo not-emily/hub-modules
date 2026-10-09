@@ -1,0 +1,33 @@
+title: Site Audit
+description: Automated site quality and accessibility reporting
+
+# Cloudflare Pages serves from the root of the build output, so no baseurl.
+baseurl: ""
+url: ""
+
+collections:
+  pages_audited:
+    output: true
+    permalink: /pages/:name/
+
+defaults:
+  - scope:
+      path: ""
+      type: pages_audited
+    values:
+      layout: page-audit
+
+sass:
+  style: compressed
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - README.md
+
+# Screenshots are large and regenerated every run; Jekyll copies them as-is.
+keep_files:
+  - assets/screenshots
+
+plugins: []

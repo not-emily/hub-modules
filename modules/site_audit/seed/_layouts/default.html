@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% if page.title %}{{ page.title }} — {% endif %}{{ site.data.audit.client | escape }} {{ site.data.audit.audit_label | default: "site audit" }}</title>
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/img/pxp-icon-32.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/img/pxp-icon-180.png' | relative_url }}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <p class="site-title">
+        <a href="{{ '/' | relative_url }}">
+          {{ site.data.audit.client | escape }}
+          {% comment %}
+            Title-cased here, lowercase in the page's own h1: the header is a
+            label, the heading is a sentence.
+
+            Keep these plain comment tags. The whitespace-trimming variant
+            swallows the space between the client name and the separator, and
+            its literal syntax inside a comment body is itself parsed as a tag.
+          {% endcomment %}
+          <span>· {{ site.data.audit.audit_label | default: "Site audit" }}</span>
+        </a>
+      </p>
+      <div class="header-right">
+        <nav class="site-nav" aria-label="Sections">
+          <a href="{{ '/' | relative_url }}"{% if page.url == "/" %} aria-current="page"{% endif %}>Overview</a>
+          {% comment %}
+            Issues lists failing Lighthouse checks, so it has nothing to show
+            without a scan. Pages survives either way — with scores it ranks by
+            triage, without them it becomes the crawl inventory.
+          {% endcomment %}
+          {% if site.data.audit.has_lighthouse %}
+            <a href="{{ '/issues/' | relative_url }}"{% if page.url == "/issues/" %} aria-current="page"{% endif %}>Issues</a>
+          {% endif %}
+          {% if site.data.audit.has_lighthouse or site.data.links.crawled %}
+            <a href="{{ '/pages/' | relative_url }}"{% if page.url == "/pages/" %} aria-current="page"{% endif %}>Pages</a>
+          {% endif %}
+          {% comment %}
+            Only when the run was actually crawled. A nav entry leading to a
+            page that says "we didn't do this" is worse than no entry.
+          {% endcomment %}
+          {% if site.data.links.crawled %}
+            <a href="{{ '/links/' | relative_url }}"{% if page.url == "/links/" %} aria-current="page"{% endif %}>Links</a>
+          {% endif %}
+        </nav>
+        {% comment %}
+          Authorship, kept deliberately quiet: the report belongs to the client,
+          so the client's name leads and this reads as a byline rather than
+          competing with it.
+        {% endcomment %}
+        <a class="header-brand" href="https://pxp.dev" target="_blank" rel="noopener">
+          {% include pxp-mark.html %}
+          <span class="sr-only">Prepared by PXP — opens pxp.dev in a new tab</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      {{ content }}
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <a class="footer-brand" href="https://pxp.dev" target="_blank" rel="noopener">
+        {% include pxp-lockup.html %}
+        <span class="sr-only">PXP — opens pxp.dev in a new tab</span>
+      </a>
+
+      <div class="footer-text">
+      <p class="footer-credit">
+        Prepared by <strong>PXP</strong>{% if site.data.audit.client %} for {{ site.data.audit.client | escape }}{% endif %}.
+      </p>
+      {% comment %}
+        The provenance line names the tool that produced the numbers above it.
+        In a link audit no PageSpeed call was made and no page was scanned, so
+        the scan version of this credits work that never happened — and reads
+        "0 pages · " with a dangling separator besides.
+      {% endcomment %}
+      {% if site.data.audit.has_lighthouse %}
+      <p>
+        Scanned {{ site.data.audit.run_date_long }} against
+        <a href="{{ site.data.audit.base_url | escape }}">{{ site.data.audit.base_url | escape }}</a>
+        · {{ site.data.audit.page_count }} page{% if site.data.audit.page_count != 1 %}s{% endif %}
+        {% if site.data.audit.strategies %}· {{ site.data.audit.strategies | join: " and " }}{% endif %}
+      </p>
+      <p>
+        Automated results from Google PageSpeed Insights
+        {% if site.data.audit.lighthouse_version %}(Lighthouse {{ site.data.audit.lighthouse_version }}){% endif %}.
+        {%- if site.data.audit.deep_dive %}
+        Automated checks cover roughly a third of WCAG success criteria — they
+        are a floor, not a pass.
+        {%- endif %}
+      </p>
+      {% else %}
+      <p>
+        Crawled {{ site.data.audit.run_date_long }} against
+        <a href="{{ site.data.audit.base_url | escape }}">{{ site.data.audit.base_url | escape }}</a>
+        {%- if site.data.links.crawled %} · {{ site.data.links.pages_crawled }}
+        page{% if site.data.links.pages_crawled != 1 %}s{% endif %}
+        · {{ site.data.links.urls_checked }} link{% if site.data.links.urls_checked != 1 %}s{% endif %} checked{% endif %}.
+      </p>
+      <p>
+        Links were followed from the pages listed in this client's
+        configuration and checked for a working response. This audit does not
+        include performance, accessibility, best-practices or SEO scores.
+      </p>
+      {% endif %}
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

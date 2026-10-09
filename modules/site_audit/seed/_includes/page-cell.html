@@ -1,0 +1,17 @@
+{%- comment -%}
+Page identity cell, shared by the Overview and Pages tables.
+
+The page name links to the audit detail — that's the primary action, and it's
+the same everywhere. The live page is reachable through an explicitly labelled
+external-link control. The path itself is plain text, not a second link:
+two adjacent links to different destinations inside one cell is the ambiguous
+link pattern this report flags elsewhere, and a screen reader would announce
+the second one as a raw URL.
+
+  include.page      — one entry from site.data.summary.pages
+  include.base_url  — trimmed off the displayed path
+{%- endcomment -%}
+{%- assign p = include.page -%}
+{%- assign path = p.url | remove: include.base_url | default: "/" -%}
+<a class="page-name" href="{{ '/pages/' | append: p.slug | append: '/' | relative_url }}">{{ p.label | escape }}</a>
+<span class="page-path">{{ path | escape }}<a class="live-link" href="{{ p.url | escape }}" target="_blank" rel="noopener">{% include icon-external.html %}<span class="sr-only">Open {{ p.label | escape }} on the live site, opens in a new tab</span></a></span>

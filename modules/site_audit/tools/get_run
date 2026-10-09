@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""site_audit.get_run -- one audit run in full, archives included."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+slug, _ = sa.resolve_client(sa.client_identifier(values, ("client", "slug")))
+
+dates = sa.run_dates(slug)
+
+if "date" in values:
+    date = sa.require_date(values["date"])
+    if date not in dates:
+        sa.fail(
+            f"No {date} run for {slug}",
+            sa.EXIT_NOT_FOUND,
+            client=slug,
+            known=dates,
+        )
+elif dates:
+    date = dates[0]
+else:
+    sa.fail(f"No audit runs recorded for {slug} yet", sa.EXIT_NOT_FOUND, client=slug)
+
+record = sa.read_run(slug, date)
+directory = sa.run_dir(slug, date)
+
+if record is None:
+    sa.fail(
+        f"The {date} run directory for {slug} has no record.json",
+        sa.EXIT_NOT_FOUND,
+        client=slug,
+        date=date,
+        directory=str(directory),
+        archives=sa.run_archives(slug, date),
+    )
+
+sa.ok(
+    client=slug,
+    date=date,
+    run=record,
+    archives=sa.run_archives(slug, date),
+    directory=str(directory),
+    bytes=sa.dir_bytes(directory),
+)

@@ -1,0 +1,404 @@
+#!/usr/bin/env python3
+"""site_audit.build_report -- captured archives into a renderable report site.
+
+Reads the PageSpeed and crawl archives a run captured, scaffolds the run's own
+copy of the seed templates, and writes the Jekyll `_data/` the templates read.
+Calls nothing: the lower layers produced these archives, and Jekyll renders
+what this writes.
+
+Takes explicit paths. Nothing here is named for a client or a run date — the
+report's own header comes from a `report` object, or from a manifest.json
+sitting with the archives.
+"""
+
+import shutil
+import statistics
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "lib"))
+
+import lighthouse as lh
+import report as rp
+import siteaudit as sa
+
+SEED = HERE.parent / "seed"
+
+
+def resolve_paths(values):
+    raw_dir = Path(str(values.get("raw_dir") or "")).expanduser()
+    if not str(raw_dir) or str(raw_dir) == ".":
+        sa.fail("raw_dir is required", sa.EXIT_USAGE)
+    if not raw_dir.is_dir():
+        sa.fail(f"no archive directory at {raw_dir}", sa.EXIT_NOT_FOUND)
+
+    site_dir = Path(str(values.get("site_dir") or "")).expanduser()
+    if not str(site_dir) or str(site_dir) == ".":
+        sa.fail("site_dir is required", sa.EXIT_USAGE)
+
+    seed_dir = Path(str(values["seed_dir"])).expanduser() if values.get("seed_dir") else SEED
+    if not seed_dir.is_dir():
+        sa.fail(f"no seed templates at {seed_dir}", sa.EXIT_NOT_FOUND)
+
+    return raw_dir, site_dir, seed_dir
+
+
+def provenance(values, raw_dir):
+    """What the report calls itself, from the params or the archive's manifest.
+
+    `report` is report vocabulary on purpose; the audit-shaped key names it
+    maps onto are what the frozen templates already read.
+    """
+    manifest = sa.read_json(raw_dir / "manifest.json", {})
+    if not isinstance(manifest, dict):
+        manifest = {}
+
+    given = values.get("report") or {}
+    if not isinstance(given, dict):
+        sa.fail("report must be an object", sa.EXIT_USAGE)
+
+    return {
+        "title": str(given.get("title") or manifest.get("name") or ""),
+        "site_url": str(given.get("site_url") or manifest.get("base_url") or ""),
+        "date": str(given.get("date") or manifest.get("run_date") or sa.today()),
+        "notes": str(given.get("notes") or manifest.get("notes") or ""),
+        "api_key_used": manifest.get("api_key_used"),
+        "fetched_at": manifest.get("fetched_at", ""),
+        "archived_categories": set(manifest.get("categories") or []),
+    }
+
+
+def main():
+    values = sa.params()
+    raw_dir, site_dir, seed_dir = resolve_paths(values)
+
+    try:
+        wanted = lh.resolve_categories(values.get("categories"))
+    except lh.Unknown as exc:
+        sa.fail(str(exc), sa.EXIT_USAGE)
+
+    deep_dive = sa.as_bool(values.get("deep_dive", False), "deep_dive")
+    no_lighthouse = sa.as_bool(values.get("no_lighthouse", False), "no_lighthouse")
+    no_links = sa.as_bool(values.get("no_links", False), "no_links")
+    reseed = sa.as_bool(values.get("reseed", False), "reseed")
+
+    meta = provenance(values, raw_dir)
+    warnings = []
+
+    pages = values.get("pages")
+    if pages is None:
+        pages = rp.discover_pages(raw_dir)
+    elif not isinstance(pages, list):
+        sa.fail("pages must be an array of {label, url, slug}", sa.EXIT_USAGE)
+    else:
+        pages = [p for p in pages if isinstance(p, dict)]
+
+    # ---- the site tree -----------------------------------------------------
+    try:
+        scaffolded = rp.scaffold_site(site_dir, seed_dir)
+    except (OSError, FileNotFoundError) as exc:
+        sa.fail(f"cannot scaffold {site_dir}: {exc}", sa.EXIT_ERROR)
+
+    reseeded = None
+    if not scaffolded and reseed:
+        try:
+            reseeded = rp.reseed_site(site_dir, seed_dir)
+        except OSError as exc:
+            sa.fail(f"cannot reseed {site_dir}: {exc}", sa.EXIT_ERROR)
+
+    data_dir = site_dir / "_data"
+    pages_data_dir = data_dir / "pages"
+    stub_dir = site_dir / "_pages_audited"
+    screenshot_dir = site_dir / "assets" / "screenshots"
+
+    # _data/pages and the screenshots are fully derived, so they are rebuilt
+    # from scratch — a page removed from the client leaves no stale page behind.
+    try:
+        for directory in (pages_data_dir, screenshot_dir):
+            if directory.exists():
+                shutil.rmtree(directory)
+            directory.mkdir(parents=True, exist_ok=True)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        stub_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        sa.fail(f"cannot prepare {site_dir}: {exc}", sa.EXIT_ERROR)
+
+    written = []
+
+    # ---- per page ----------------------------------------------------------
+    page_summaries = []
+    issue_index = {}
+    lighthouse_version = ""
+    stubs_created = 0
+    missing = []
+    active_categories = set()
+
+    # no_lighthouse sets exactly the state an absent PSI archive produces: no
+    # page summaries, no categories. One downstream path serves both.
+    for page in ([] if no_lighthouse else pages):
+        url = page.get("url", "")
+        slug = page.get("slug") or rp.slugify_url(url)
+        label = page.get("label") or slug
+
+        per_strategy = {}
+        for strategy in lh.STRATEGIES:
+            doc = rp.load_report(raw_dir, slug, strategy)
+            if doc is None:
+                missing.append(f"{slug}.{strategy}")
+                continue
+            if doc.get("error"):
+                missing.append(f"{slug}.{strategy} (API error)")
+                continue
+
+            result = lh.parse_report(doc, f"{slug}.{strategy}", screenshot_dir, wanted)
+            per_strategy[strategy] = result
+            lighthouse_version = lighthouse_version or result["lighthouse_version"]
+            active_categories.update(result["scores"].keys())
+
+            # Fold this page's failures into the site-wide issue index.
+            for cat_key, buckets in result["audits"].items():
+                for failed in buckets["failed"]:
+                    issue = issue_index.setdefault(failed["id"], {
+                        "id": failed["id"],
+                        "title": failed["title"],
+                        "description": failed["description"],
+                        "doc_url": failed["doc_url"],
+                        "category": cat_key,
+                        "category_label": lh.CATEGORY_LABELS.get(cat_key, cat_key),
+                        "group": failed["group"],
+                        "weight": failed["weight"],
+                        "impact": failed.get("impact", ""),
+                        "affected": [],
+                        "total_nodes": 0,
+                    })
+                    issue["impact"] = issue["impact"] or failed.get("impact", "")
+                    issue["affected"].append({
+                        "slug": slug, "label": label, "url": url,
+                        "strategy": strategy, "node_count": failed["node_count"],
+                    })
+                    issue["total_nodes"] += failed["node_count"]
+
+        if not per_strategy:
+            warnings.append(f"{slug}: no usable reports, skipped")
+            continue
+
+        sa.write_json(pages_data_dir / f"{slug}.json", {
+            "slug": slug, "label": label, "url": url, "strategies": per_strategy,
+        }, indent=1)
+        written.append(f"_data/pages/{slug}.json")
+
+        page_summaries.append(rp.page_summary(slug, label, url, per_strategy))
+
+        if rp.write_stub(stub_dir / f"{slug}.md", page, slug, deep_dive):
+            stubs_created += 1
+            written.append(f"_pages_audited/{slug}.md")
+
+    # ---- link integrity ----------------------------------------------------
+    links_csv = site_dir / "assets" / "links.csv"
+    links_csv.parent.mkdir(parents=True, exist_ok=True)
+    if links_csv.exists():
+        links_csv.unlink()          # fully derived; never leave a stale one
+
+    crawl = None if no_links else rp.load_crawl(raw_dir, warnings)
+    if crawl:
+        links_data = rp.build_links_data(crawl, pages, links_csv)
+        written.append("assets/links.csv")
+    else:
+        links_data = {"crawled": False}
+
+    # Each run owns a frozen copy of the templates, so a run scaffolded before
+    # the Links page existed has the data and nothing to render it with. That
+    # is the frozen-deliverable guarantee working correctly, and it is also
+    # invisible. Name it.
+    links_template_missing = bool(
+        links_data.get("crawled") and not (site_dir / "links.html").exists())
+    if links_template_missing:
+        warnings.append("this run's templates predate the Links page, so the link "
+                        "findings are in the data but not in the report — "
+                        "re-run with reseed=true to pull them in")
+
+    sa.write_json(data_dir / "links.json", links_data, indent=1)
+    written.append("_data/links.json")
+
+    # An audit needs *a* source of findings, not specifically Lighthouse.
+    if not page_summaries and not links_data.get("crawled"):
+        sa.fail(
+            "No pages produced any data, and there is no crawl archive to fall "
+            "back on", sa.EXIT_NOT_FOUND,
+            raw_dir=str(raw_dir),
+            hint="check the archive directory, or crawl the site for a link audit",
+        )
+
+    # ---- naming ------------------------------------------------------------
+    # Keep the canonical display order, but only for categories actually fetched.
+    ordered = [c for c in lh.CATEGORIES if c in active_categories]
+
+    # What this report should call itself. Scope is two-axis — Lighthouse
+    # categories (possibly none) plus the link check — so the name comes from
+    # whichever sources actually produced findings.
+    if not ordered:
+        subject = "Link"
+    elif len(ordered) == 1:
+        subject = rp.CATEGORY_AUDIT_NAME[ordered[0]]
+    else:
+        subject = "Site"
+    audit_label = f"{subject} audit"
+    # Lowercased for inline use, except acronyms which look wrong downcased.
+    audit_label_inline = f"{subject if subject.isupper() else subject.lower()} audit"
+
+    # The category the per-page summary table leads with — null when nothing
+    # was scanned, rather than naming a category the run has no data for.
+    primary = None
+    if ordered:
+        primary = "accessibility" if "accessibility" in ordered else ordered[0]
+
+    # ---- averages ----------------------------------------------------------
+    averages = {}
+    average_fractions = {}
+    for strategy in lh.STRATEGIES:
+        per_cat = {}
+        for cat in ordered:
+            vals = [p["scores"][strategy][cat] for p in page_summaries
+                    if strategy in p["scores"]
+                    and p["scores"][strategy].get(cat) is not None]
+            per_cat[cat] = round(statistics.mean(vals)) if vals else None
+        if any(v is not None for v in per_cat.values()):
+            averages[strategy] = per_cat
+
+        # Fraction categories average as a fraction too. Rounding the mean to
+        # one decimal keeps "4.5 of 6" honest — a whole number would show 5 of
+        # 6 for a site where no page scores better than 4.
+        per_cat_frac = {}
+        for cat in ordered:
+            if cat not in lh.FRACTION_CATEGORIES:
+                continue
+            found = [p["fractions"][strategy][cat] for p in page_summaries
+                     if strategy in p.get("fractions", {})
+                     and p["fractions"][strategy].get(cat)]
+            if not found:
+                continue
+            # Total is per-page in principle; in practice every page runs the
+            # same checks, so the largest denominator seen is the real one.
+            per_cat_frac[cat] = {
+                "passed": round(statistics.mean([f["passed"] for f in found]), 1),
+                "total": max(f["total"] for f in found),
+            }
+        if per_cat_frac:
+            average_fractions[strategy] = per_cat_frac
+
+    # ---- issues and summary ------------------------------------------------
+    issues = rp.finalise_issues(issue_index)
+    a11y_issues = [i for i in issues if i["category"] == "accessibility"]
+
+    sa.write_json(data_dir / "summary.json", {
+        "averages": averages,
+        "average_fractions": average_fractions,
+        "pages": page_summaries,
+        "page_count": len(page_summaries),
+        "issue_count": len(issues),
+        "accessibility_issue_count": len(a11y_issues),
+        "element_count": sum(i["element_count"] for i in issues),
+        "accessibility_element_count": sum(i["element_count"] for i in a11y_issues),
+        "top_issues": issues[:10],
+        "top_accessibility_issues": a11y_issues[:10],
+    }, indent=1)
+    sa.write_json(data_dir / "issues.json", issues, indent=1)
+
+    # `client`, `base_url` and `run_date_long` are the keys the frozen
+    # templates read. The params that fed them are report vocabulary; this is
+    # the one place the two meet.
+    sa.write_json(data_dir / "audit.json", {
+        "client": meta["title"],
+        "base_url": meta["site_url"],
+        "run_date": meta["date"],
+        "run_date_long": rp.long_date(meta["date"]),
+        "generated": sa.today(),
+        "lighthouse_version": lighthouse_version,
+        "page_count": len(page_summaries),
+        # Only what was actually fetched, so templates never render an empty
+        # column for a category this run did not ask for.
+        "categories": [
+            {"key": k, "label": lh.CATEGORY_LABELS[k], "short": rp.CATEGORY_SHORT[k],
+             # Fraction categories are scored n-of-m, not 0-100. Templates
+             # branch on this rather than hardcoding a category name, so the
+             # next one Google adds needs no template change.
+             "display": "fraction" if k in lh.FRACTION_CATEGORIES else "score"}
+            for k in ordered
+        ],
+        "accessibility_only": ordered == ["accessibility"],
+        "audit_label": audit_label,
+        "audit_label_inline": audit_label_inline,
+        "primary_category": None if primary is None else {
+            "key": primary, "label": lh.CATEGORY_LABELS[primary],
+            "short": rp.CATEGORY_SHORT[primary]},
+        # One flag the templates branch on, rather than each of them working
+        # out emptiness from the categories array.
+        "has_lighthouse": bool(ordered),
+        "deep_dive": deep_dive,
+        # Canonical order, not alphabetical — mobile leads because that is the
+        # form factor the audit is judged on.
+        "strategies": [s for s in lh.STRATEGIES
+                       if any(s in p["scores"] for p in page_summaries)],
+        "api_key_used": meta["api_key_used"],
+        "fetched_at": meta["fetched_at"],
+        "notes": meta["notes"],
+    }, indent=1)
+    written += ["_data/summary.json", "_data/issues.json", "_data/audit.json"]
+
+    # ---- what was archived but not rendered --------------------------------
+    unrendered = meta["archived_categories"] - active_categories
+    if unrendered and ordered:
+        warnings.append("archived but not rendered: "
+                        f"{', '.join(sorted(unrendered))} — drop categories to include them")
+    unfetched = set(wanted) - active_categories
+    if unfetched and ordered:
+        warnings.append("requested but not in the archive: "
+                        f"{', '.join(sorted(unfetched))}")
+    if not ordered:
+        warnings.append("no Lighthouse data in this run — rendering a link audit")
+
+    shots = sorted(p for p in screenshot_dir.glob("*") if p.is_file())
+    written += [f"assets/screenshots/{p.name}" for p in shots]
+
+    links_out = {"crawled": False}
+    if links_data.get("crawled"):
+        links_out = {
+            "crawled": True,
+            "complete": links_data["complete"],
+            "truncated": links_data["truncated"],
+            "blocked": links_data["blocked"],
+            "pages_crawled": links_data["pages_crawled"],
+            "urls_checked": links_data["urls_checked"],
+            "broken": links_data["broken"]["count"],
+            "unverifiable": links_data["unverifiable"]["count"],
+            "redirect": links_data["redirect"]["count"],
+            "csv_rows": links_data["csv_rows"],
+            "sitemap_not_reached": links_data["sitemap_not_reached"],
+            "sitemap_not_reached_sampled": links_data["sitemap_not_reached_sampled"],
+        }
+
+    sa.ok(
+        f"Built {audit_label_inline} at {site_dir} — {len(page_summaries)} page(s), "
+        f"{len(issues)} issue(s), {len(shots)} screenshot(s)",
+        site_dir=str(site_dir),
+        scaffolded=scaffolded,
+        reseeded=reseeded,
+        audit_label=audit_label,
+        categories=ordered,
+        pages=len(page_summaries),
+        issues=len(issues),
+        accessibility_issues=len(a11y_issues),
+        screenshots={"count": len(shots),
+                     "bytes": sum(p.stat().st_size for p in shots)},
+        stubs_created=stubs_created,
+        links=links_out,
+        links_template_missing=links_template_missing,
+        missing_reports=missing,
+        warnings=warnings,
+        files=sorted(set(written)),
+    )
+
+
+if __name__ == "__main__":
+    main()

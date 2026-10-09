@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""site_audit.list_runs -- recorded audit runs, newest first."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+
+identifier = sa.client_identifier(values, ("client", "slug"))
+if identifier:
+    slug, _ = sa.resolve_client(identifier)
+    slugs = [slug]
+else:
+    slugs = [s for s, _ in sa.all_clients()]
+
+limit = sa.as_int(values.get("limit", 10), "limit", minimum=0)
+
+runs = []
+for slug in slugs:
+    for date in sa.run_dates(slug):
+        record = sa.read_run(slug, date) or {}
+        runs.append(
+            {
+                "client": slug,
+                "date": date,
+                "status": record.get("status"),
+                "complete": record.get("complete"),
+                "deployed_url": record.get("deployed_url"),
+                "started_at": record.get("started_at"),
+                "finished_at": record.get("finished_at"),
+                "archive_count": len(sa.run_archives(slug, date)),
+            }
+        )
+
+runs.sort(key=lambda run: (run["date"], run["client"]), reverse=True)
+
+total = len(runs)
+if limit:
+    runs = runs[:limit]
+
+if not runs:
+    scope = f" for {slugs[0]}" if len(slugs) == 1 else ""
+    sa.ok(f"No audit runs recorded{scope} yet", runs=[], count=0, total=total)
+
+sa.ok(runs=runs, count=len(runs), total=total)

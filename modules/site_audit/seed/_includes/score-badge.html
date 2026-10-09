@@ -1,0 +1,57 @@
+{%- comment -%}
+Score pill. The icon repeats what the colour says, so the rating still reads in
+greyscale or for anyone who can't distinguish the palette.
+
+Filled pill + check/exclamation/times deliberately differs from the outlined
+severity chips — score and severity are different measures and must not be
+mistaken for one another.
+
+  include.score  — 0-100 integer, or nil
+  include.passed — fraction numerator. Pass with include.total instead of
+                   include.score for a category Lighthouse scores n-of-m
+                   (Agentic Browsing). The pill then reads "4/6" and the
+                   title says so, because presenting that as 67 would invite
+                   comparison with a 0-100 score that means something else.
+  include.total  — fraction denominator
+  include.label  — optional category name, used for the accessible label
+  include.suffix — optional trailing word inside the pill, e.g. a form factor.
+                   Keeping it inside means the association is structural rather
+                   than positional — no guessing which chip belongs to which.
+{%- endcomment -%}
+{%- assign total = include.total -%}
+{%- if total and total > 0 -%}
+  {%- comment -%} Fraction mode. Thresholds mirror the 0-100 bands: all
+  passing is good, at least half is mid, below half is poor. {%- endcomment -%}
+  {%- assign passed = include.passed | default: 0 -%}
+  {%- assign pct = passed | times: 100.0 | divided_by: total -%}
+  {%- if passed >= total -%}
+    {%- assign cls = "s-good" -%}{%- assign ico = "check" -%}{%- assign rating = "all checks passed" -%}
+  {%- elsif pct >= 50 -%}
+    {%- assign cls = "s-average" -%}{%- assign ico = "exclamation" -%}{%- assign rating = "needs improvement" -%}
+  {%- else -%}
+    {%- assign cls = "s-poor" -%}{%- assign ico = "times" -%}{%- assign rating = "poor" -%}
+  {%- endif -%}
+  <span class="badge {{ cls }}" title="{% if include.label %}{{ include.label }}: {% endif %}{{ passed }} of {{ total }} checks passed — {{ rating }}">
+    {% include icon.html name=ico %}
+    <span class="sr-only">{% if include.label %}{{ include.label }} {% endif %}</span>{{ passed }}<span aria-hidden="true">/{{ total }}</span><span class="sr-only"> of {{ total }} checks passed</span>
+    <span class="sr-only">, {{ rating }}</span>
+    {%- if include.suffix %} <span class="badge-suffix">{{ include.suffix }}</span>{% endif %}
+  </span>
+{%- else -%}
+  {%- assign s = include.score -%}
+  {%- if s == nil -%}
+    {%- assign cls = "s-none" -%}{%- assign ico = "minus" -%}{%- assign rating = "not measured" -%}
+  {%- elsif s >= 90 -%}
+    {%- assign cls = "s-good" -%}{%- assign ico = "check" -%}{%- assign rating = "good" -%}
+  {%- elsif s >= 50 -%}
+    {%- assign cls = "s-average" -%}{%- assign ico = "exclamation" -%}{%- assign rating = "needs improvement" -%}
+  {%- else -%}
+    {%- assign cls = "s-poor" -%}{%- assign ico = "times" -%}{%- assign rating = "poor" -%}
+  {%- endif -%}
+  <span class="badge {{ cls }}" title="{% if include.label %}{{ include.label }}: {% endif %}{% if s %}{{ s }}/100 — {% endif %}{{ rating }}">
+    {% include icon.html name=ico %}
+    <span class="sr-only">{% if include.label %}{{ include.label }} {% endif %}</span>{% if s %}{{ s }}{% else %}n/a{% endif %}
+    <span class="sr-only">, {{ rating }}</span>
+    {%- if include.suffix %} <span class="badge-suffix">{{ include.suffix }}</span>{% endif %}
+  </span>
+{%- endif -%}

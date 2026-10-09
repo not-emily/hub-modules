@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""site_audit.prune_runs -- delete old runs and the archives stored with them.
+
+Nothing in hub-core reaps anything, so retention is the module's job. A run
+whose status has not reached a terminal state is left alone however old it
+looks, since the sweep may still be working on it.
+"""
+
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+
+identifier = sa.client_identifier(values, ("client", "slug"))
+if identifier:
+    slug, _ = sa.resolve_client(identifier)
+    slugs = [slug]
+else:
+    slugs = [s for s, _ in sa.all_clients()]
+
+keep = sa.as_int(values.get("keep", 10), "keep", minimum=0)
+older_than_days = sa.as_int(
+    values.get("older_than_days", 90), "older_than_days", minimum=0
+)
+dry_run = sa.as_bool(values.get("dry_run", False), "dry_run")
+
+per_client = {}
+deleted = kept = unfinished = 0
+reclaimed = 0
+
+for slug in slugs:
+    dates = sa.run_dates(slug)
+    if not dates:
+        continue
+
+    report = {"deleted": [], "kept": [], "unfinished": []}
+
+    for position, date in enumerate(dates):
+        record = sa.read_run(slug, date) or {}
+        status = record.get("status")
+
+        if position < keep:
+            report["kept"].append(date)
+            kept += 1
+            continue
+
+        if status not in sa.TERMINAL_STATES:
+            report["unfinished"].append(date)
+            unfinished += 1
+            continue
+
+        if older_than_days and sa.days_old(date) < older_than_days:
+            report["kept"].append(date)
+            kept += 1
+            continue
+
+        directory = sa.run_dir(slug, date)
+        size = sa.dir_bytes(directory)
+
+        if not dry_run:
+            try:
+                shutil.rmtree(directory)
+            except OSError as exc:
+                sa.fail(
+                    f"Could not delete the {date} run for {slug}: {exc}",
+                    sa.EXIT_ERROR,
+                    deleted=deleted,
+                    bytes_reclaimed=reclaimed,
+                )
+
+        report["deleted"].append({"date": date, "bytes": size})
+        deleted += 1
+        reclaimed += size
+
+    if any(report.values()):
+        per_client[slug] = report
+
+verb = "Would delete" if dry_run else "Deleted"
+message = (
+    f"{verb} {deleted} run(s), reclaiming {reclaimed} bytes. "
+    f"{kept} kept, {unfinished} left alone for not having finished"
+)
+
+sa.ok(
+    message,
+    deleted=deleted,
+    kept=kept,
+    unfinished=unfinished,
+    bytes_reclaimed=reclaimed,
+    clients=per_client,
+    dry_run=dry_run,
+)

@@ -1,0 +1,152 @@
+---
+layout: default
+title: Issues
+permalink: /issues/
+---
+
+{% assign audit = site.data.audit %}
+{% assign issues = site.data.issues %}
+
+<h1>Issues</h1>
+
+{% if audit.has_lighthouse == false %}
+  <p class="lede">This audit did not include the Lighthouse checks.</p>
+  <p class="scope-note">
+    Issues are the failing checks from a page scan. This run covers link
+    integrity only — see <a href="{{ '/links/' | relative_url }}">Links</a>.
+  </p>
+{% else %}
+
+<p class="lede">
+  Every failing check, listed once with the pages it affects. Ordered by
+  severity, then by how many pages share it — a check that fails on eight pages
+  is usually one fix in a shared template.
+</p>
+
+{% if audit.categories.size > 1 %}
+  <div class="tabs" role="group" aria-label="Filter issues by category">
+    <button type="button" class="tab" data-filter="all" aria-pressed="true">
+      All <span class="muted">({{ issues.size }})</span>
+    </button>
+    {% for cat in audit.categories %}
+      {% assign n = 0 %}
+      {% for i in issues %}{% if i.category == cat.key %}{% assign n = n | plus: 1 %}{% endif %}{% endfor %}
+      {% if n > 0 %}
+        <button type="button" class="tab" data-filter="{{ cat.key }}" aria-pressed="false">
+          {{ cat.label }} <span class="muted">({{ n }})</span>
+        </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+<div id="issue-list">
+  {% for issue in issues %}
+    <article class="issue" id="{{ issue.id }}" data-category="{{ issue.category }}">
+      <div class="issue-head">
+        <h2 style="margin:0 0 .35rem;font-size:1.02rem">{{ issue.title | escape }}</h2>
+        <p class="muted small" style="margin:0">{{ issue.description | escape }}</p>
+        <p class="issue-meta">
+          {% include severity-label.html impact=issue.impact %}
+          <span>{{ issue.category_label }}</span>
+          <span>{{ issue.page_count }} page{% if issue.page_count != 1 %}s{% endif %}</span>
+          {% if issue.element_scoped %}<span>{{ issue.element_count }} element{% if issue.element_count != 1 %}s{% endif %}</span>{% else %}<span>page-level</span>{% endif %}
+          {% if issue.doc_url %}
+            <a href="{{ issue.doc_url | escape }}" target="_blank" rel="noopener">How to fix {% include icon-external.html %}<span class="sr-only">, opens in a new tab</span></a>
+          {% endif %}
+        </p>
+      </div>
+
+      <details>
+        <summary>{% include icon.html name="chevron" class="disclosure" %}Affected pages ({{ issue.pages.size }})</summary>
+        <div class="table-scroll" style="margin:0 1.15rem 1rem">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Page</th>
+                <th scope="col">Form factors</th>
+                {% if issue.element_scoped %}<th scope="col">Elements</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in issue.pages %}
+                <tr>
+                  <th scope="row">
+                    <a href="{{ '/pages/' | append: a.slug | append: '/' | relative_url }}">{{ a.label | escape }}</a>
+                  </th>
+                  <td>
+                    {% comment %}
+                      One chip per form factor. Two chips versus one reads at a
+                      glance, and an explicit "desktop only" note alongside a
+                      cell already reading "desktop" was saying it twice.
+                    {% endcomment %}
+                    {% for st in a.strategies %}<span class="factor">{{ st }}</span>{% endfor %}
+                  </td>
+                  {% if issue.element_scoped %}<td class="num">{{ a.node_count }}</td>{% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </article>
+  {% endfor %}
+</div>
+
+<p id="no-results" hidden class="muted">No issues in that category.</p>
+
+{% comment %}
+  One cross-reference, not one row per broken link. This page is the Lighthouse
+  remediation plan; folding a few dozen link findings into it would bury the
+  accessibility work that belongs here, and summary.issue_count — which drives
+  the copy above — deliberately does not count them.
+{% endcomment %}
+{% if site.data.links.crawled and site.data.links.broken.count > 0 %}
+  <article class="issue link-crossref">
+    <div class="issue-head">
+      <h2 style="margin:0 0 .35rem;font-size:1.02rem">
+        <a href="{{ '/links/' | relative_url }}">{{ site.data.links.broken.count }} broken link{% if site.data.links.broken.count != 1 %}s{% endif %}</a>
+      </h2>
+      <p class="muted small" style="margin:0">
+        Found by crawling the whole site rather than by scanning the pages
+        above, so {% if site.data.links.broken.count == 1 %}it is{% else %}they are{% endif %}
+        counted separately from the checks on this page.
+      </p>
+      <p class="issue-meta">
+        <span class="factor link-status link-broken">{% include icon.html name="times" %} broken links</span>
+        <span>{{ site.data.links.pages_crawled }} pages crawled</span>
+        <a href="{{ '/links/' | relative_url }}">See the list {% include icon.html name="arrow-right" %}</a>
+      </p>
+    </div>
+  </article>
+{% endif %}
+
+{% endif %}
+
+<script>
+// Category filter. Progressive enhancement — without JS every issue is listed.
+(function () {
+  var tabs = document.querySelectorAll('.tab[data-filter]');
+  if (!tabs.length) return;
+
+  var issues = document.querySelectorAll('#issue-list .issue');
+  var empty = document.getElementById('no-results');
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var filter = tab.dataset.filter;
+      var shown = 0;
+
+      tabs.forEach(function (t) { t.setAttribute('aria-pressed', String(t === tab)); });
+
+      issues.forEach(function (issue) {
+        var match = filter === 'all' || issue.dataset.category === filter;
+        issue.hidden = !match;
+        if (match) shown++;
+      });
+
+      empty.hidden = shown > 0;
+    });
+  });
+})();
+</script>

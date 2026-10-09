@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""site_audit.add_page -- add a page to the list an audit scores.
+
+One page per call rather than one large form, because input collection asks for
+every param a tool declares and a twenty-element array is not a question
+anybody wants to answer.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+
+# `slug` here names the page's archives, so it cannot also name the client.
+client_slug, record = sa.resolve_client(sa.client_identifier(values, ("client",)))
+
+label = str(values.get("label") or "").strip()
+if not label:
+    sa.fail("label is required", sa.EXIT_USAGE)
+
+# base_url is never joined onto a page URL, so a relative one would be scanned
+# as written and fail.
+url = sa.require_url(values.get("url"), "url")
+
+page_slug = sa.slugify(values.get("slug") or "") or sa.page_slug(url)
+
+pages = record.get("pages") or []
+
+for existing in pages:
+    if str(existing.get("url", "")).rstrip("/") == url.rstrip("/"):
+        sa.fail(
+            f"{client_slug} already scores {url}",
+            sa.EXIT_USAGE,
+            page=existing,
+        )
+    if existing.get("slug") == page_slug:
+        sa.fail(
+            f"Another page on {client_slug} already uses the slug '{page_slug}' — "
+            "give this one its own",
+            sa.EXIT_USAGE,
+            page=existing,
+        )
+
+page = {"label": label, "url": url, "slug": page_slug}
+pages.append(page)
+record["pages"] = pages
+record["updated_at"] = sa.now()
+
+sa.save_client(client_slug, record)
+
+sa.ok(
+    f"Added '{label}' to {client_slug}, which now scores {len(pages)} page(s)",
+    slug=client_slug,
+    page=page,
+    page_count=len(pages),
+)

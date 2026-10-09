@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""site_audit.update_client -- change settings on an audit client.
+
+Only the fields given are touched. An empty param cannot mean "clear this",
+because the executor drops empty values before a tool ever sees them, so
+clearing is an explicit list.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+CLEARABLE = {
+    "notes": "",
+    "cloudflare_production_branch": None,
+    "crawl": True,
+    "crawl_depth": 3,
+    "deep_dive": False,
+}
+
+values = sa.params()
+
+# `name` is this tool's own param, so it cannot also name the client.
+slug, record = sa.resolve_client(sa.client_identifier(values, ("client", "slug")))
+
+changed = {}
+
+if "name" in values:
+    name = str(values["name"]).strip()
+    if not name:
+        sa.fail("name cannot be empty", sa.EXIT_USAGE)
+    changed["name"] = name
+
+if "base_url" in values:
+    changed["base_url"] = sa.require_url(values["base_url"], "base_url").rstrip("/")
+
+if "cloudflare_project" in values:
+    changed["cloudflare_project"] = sa.require_project(values["cloudflare_project"])
+
+if "cloudflare_production_branch" in values:
+    changed["cloudflare_production_branch"] = str(
+        values["cloudflare_production_branch"]
+    ).strip()
+
+if "crawl" in values:
+    changed["crawl"] = sa.as_bool(values["crawl"], "crawl")
+
+if "crawl_depth" in values:
+    changed["crawl_depth"] = sa.as_int(values["crawl_depth"], "crawl_depth", minimum=1)
+
+if "deep_dive" in values:
+    changed["deep_dive"] = sa.as_bool(values["deep_dive"], "deep_dive")
+
+if "notes" in values:
+    changed["notes"] = str(values["notes"])
+
+requested = values.get("clear") or []
+if isinstance(requested, str):
+    requested = [part.strip() for part in requested.split(",")]
+
+cleared = []
+for field in requested:
+    field = str(field).strip()
+    if not field:
+        continue
+    if field not in CLEARABLE:
+        sa.fail(
+            f"'{field}' cannot be cleared",
+            sa.EXIT_USAGE,
+            clearable=sorted(CLEARABLE),
+        )
+    cleared.append(field)
+
+if not changed and not cleared:
+    sa.fail(
+        "Nothing to change — give at least one field to set or clear",
+        sa.EXIT_USAGE,
+        slug=slug,
+    )
+
+record.update(changed)
+
+for field in cleared:
+    default = CLEARABLE[field]
+    if default is None:
+        record.pop(field, None)
+    else:
+        record[field] = default
+
+record["updated_at"] = sa.now()
+sa.save_client(slug, record)
+
+summary = ", ".join(sorted(set(changed) | set(cleared)))
+sa.ok(
+    f"Updated {slug}: {summary}",
+    slug=slug,
+    changed=changed,
+    cleared=cleared,
+    client=record,
+)

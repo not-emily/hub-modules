@@ -1,0 +1,886 @@
+/* ---------------------------------------------------------------------------
+   Site audit report
+   The report itself is a demonstration piece: semantic landmarks, visible
+   focus, contrast-checked palette, no meaning carried by colour alone.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --bg: #ffffff;
+  --bg-sunken: #f6f7f9;
+  --bg-raised: #ffffff;
+  --border: #dfe3e8;
+  --border-strong: #c2c9d1;
+  --text: #16191d;
+  --text-muted: #5a6470;
+  --accent: #1a4fa0;
+  --accent-soft: #eaf0fb;
+  --brand: #00888f;
+
+  --good: #0b6c39;
+  --good-bg: #e5f4ec;
+  --average: #8a4b00;
+  --average-bg: #fdf0e0;
+  --poor: #a3161a;
+  --poor-bg: #fdeaea;
+
+  --critical: #8b1116;
+  --serious: #a3401a;
+  --moderate: #6b5300;
+  --minor: #4a5563;
+
+  --radius: 8px;
+  --maxw: 1120px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b;
+    --bg-sunken: #1b1f24;
+    --bg-raised: #1f242a;
+    --border: #333a42;
+    --border-strong: #4a535d;
+    --text: #e8ebee;
+    --text-muted: #a3adb8;
+    --accent: #7aa7f0;
+    --accent-soft: #1d2a3f;
+    --brand: #62c7c9;
+
+    --good: #5cc98d;
+    --good-bg: #14302180;
+    --average: #e0a458;
+    --average-bg: #3a2a1080;
+    --poor: #f08a8a;
+    --poor-bg: #3a191980;
+
+    --critical: #f08a8a;
+    --serious: #e8a06a;
+    --moderate: #d9c26a;
+    --minor: #9aa5b1;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.25rem; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* One rule sizes every icon: 1em square, so each inherits the type size of
+   whatever it sits in and needs no per-context override. */
+.icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: -0.125em;
+  flex: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  z-index: 100;
+}
+.skip-link:focus { left: 0; }
+
+/* ---- header --------------------------------------------------------- */
+
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.site-header .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+.site-title {
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.site-title a { color: var(--text); text-decoration: none; }
+.site-title span { color: var(--text-muted); font-weight: 400; }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+/* PXP byline. Muted at rest so it never competes with the client's name. */
+.header-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  color: var(--text-muted);
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--border);
+}
+.header-brand:hover,
+.header-brand:focus-visible { color: var(--brand); }
+.pxp-mark { display: block; height: 20px; width: auto; }
+
+.site-nav { display: flex; gap: 1.25rem; font-size: 0.9rem; }
+.site-nav a { color: var(--text-muted); text-decoration: none; }
+.site-nav a:hover, .site-nav a[aria-current="page"] {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* ---- page furniture -------------------------------------------------- */
+
+main { padding: 2.5rem 0 4rem; }
+
+h1 { font-size: 1.9rem; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+h2 { font-size: 1.25rem; letter-spacing: -0.01em; margin: 2.5rem 0 0.9rem; }
+h3 { font-size: 1rem; margin: 1.75rem 0 0.5rem; }
+
+.lede { color: var(--text-muted); font-size: 1.05rem; margin: 0 0 2rem; max-width: 62ch; }
+.muted { color: var(--text-muted); }
+.nowrap { white-space: nowrap; }
+
+/* Severity chips. Outlined, with a shape glyph — deliberately a different
+   visual language from the filled score badges, because severity and score are
+   different measures and must not be mistaken for each other. */
+.factor.sev-critical { color: var(--critical); border-color: var(--critical); }
+.factor.sev-serious  { color: var(--serious);  border-color: var(--serious); }
+.factor.sev-moderate { color: var(--moderate); border-color: var(--moderate); }
+.factor.sev-minor    { color: var(--minor);    border-color: var(--minor); }
+.factor.sev-none     { color: var(--text-muted); }
+
+.sev-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.sev-legend .factor { margin-right: 0; }
+
+/* Worst-score cell: category, then a score+form-factor pair per factor.
+   Wraps rather than overflowing when the column gets tight. */
+.worst-score {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.45rem;
+}
+.worst-score-cat {
+  min-width: 2.6em;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+/* Trailing word inside a score pill — quieter than the number it qualifies,
+   but inheriting the pill's colour so it reads as one unit. */
+.badge-suffix {
+  font-weight: 500;
+  font-size: 0.92em;
+  opacity: 0.75;
+  text-transform: lowercase;
+}
+
+/* Leading number in the failing-checks cell, so the total reads before the
+   per-category breakdown rather than getting lost among the chips. */
+.check-total {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-right: 0.35rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Form-factor chip. Identical styling for every factor — a difference in
+   colour would imply a difference in meaning; the count of chips is the
+   signal, and one chip instead of two marks a responsive-only failure. */
+.factor {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: 0.22rem;
+  margin-right: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.small { font-size: 0.875rem; }
+
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 1rem 1.25rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 1.5rem 0;
+}
+.callout p { margin: 0.4rem 0; }
+.callout p:first-child { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+
+/* Automated-only reports state their scope in one quiet line rather than a
+   callout — factual, not alarming, and it names what a deep dive adds. */
+.scope-note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 2rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--border-strong);
+}
+
+/* ---- score tiles ----------------------------------------------------- */
+
+/* ---- coverage strip ------------------------------------------------- */
+
+.coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0 0 2rem;
+  padding: 0;
+}
+.coverage li {
+  flex: 1 1 8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.coverage li > * {
+  display: block;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+.coverage a:hover {
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+.coverage a .coverage-value { color: var(--accent); }
+.coverage-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+/* Word values sit at text scale — a name at numeral size overwhelms the row. */
+.coverage-value.is-text {
+  font-size: 1.15rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.coverage-label {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ---- score tiles ---------------------------------------------------- */
+
+/* One card per category; form factors sit side by side inside it. auto-fill
+   rather than auto-fit so a single-category audit shows one normal-width card
+   instead of one stretched across the whole row. */
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.score-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 0.9rem 1.1rem;
+  background: var(--bg-raised);
+  text-align: center;
+}
+.score-tile .label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.score-split { display: flex; align-items: stretch; }
+.score-part {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 0.4rem;
+}
+/* Divider only between parts, so a single-form-factor audit has none. */
+.score-part + .score-part { border-left: 1px solid var(--border); }
+
+.score-tile .value {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* Denominator of an n-of-m category score. Smaller and lighter so the tile
+   still reads at a glance as "4", with "/6" as the qualifier — matching the
+   visual weight a bare 0-100 score gets in the neighbouring tiles. Inherits
+   the rating colour rather than going muted, so the pair stays one unit. */
+.score-tile .value-denom {
+  font-size: 0.55em;
+  font-weight: 550;
+  opacity: 0.65;
+}
+.score-tile .sublabel {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.35rem;
+  opacity: 0.8;
+}
+
+.s-good    { color: var(--good); }
+.s-average { color: var(--average); }
+.s-poor    { color: var(--poor); }
+.s-none    { color: var(--text-muted); }
+.ico-good  { color: var(--good); }
+
+/* Score badge used inline and in tables. The leading glyph carries the same
+   information as the colour, so the rating survives greyscale printing. */
+/* An inline-flex box takes its baseline from its first flex item, so a pill
+   starting with an icon aligns by the icon's bottom edge while a text-only
+   pill aligns by the text baseline — a couple of pixels apart in the same row.
+   Aligning these by middle instead makes every pill sit consistently,
+   regardless of whether it happens to carry an icon. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badge.s-good    { background: var(--good-bg); }
+.badge.s-average { background: var(--average-bg); }
+.badge.s-poor    { background: var(--poor-bg); }
+.badge.s-none    { background: var(--bg-sunken); }
+
+/* ---- tables ---------------------------------------------------------- */
+
+.table-scroll { overflow-x: auto; margin: 1rem 0 2rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925rem;
+}
+caption {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding-bottom: 0.6rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  /* Middle, not top: the page cell is two lines (name over path) while the
+     score cells are one, so top-aligning strands the badges at the row ceiling. */
+  vertical-align: middle;
+}
+/* Column headers only. Row headers (<th scope="row">) carry real content —
+   page names, issue titles — and must not be uppercased or clipped. */
+thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-strong);
+}
+tbody th[scope="row"] {
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+th[scope="colgroup"] { border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+
+/* Page identity cell: one primary link (the name), one explicitly labelled
+   external link, and the path as plain text rather than a second target. */
+.page-cell { min-width: 15rem; font-weight: 400; }
+
+/* Name and path need a clear size gap. Monospace reads larger than a
+   proportional face at the same nominal size, so the ratio has to be wider
+   than it looks on paper — 1rem against 0.72rem lands at roughly 1.4x. */
+.page-name {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.live-link {
+  /* inline-flex with a 24px minimum keeps the icon a valid pointer target
+     (WCAG 2.5.8) even though the glyph itself is small. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  margin-left: 0.15rem;
+  /* The 24px target box is far taller than the 0.72rem path text, so baseline
+     alignment drops it below the line — centre it on the text instead. */
+  vertical-align: middle;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.live-link:hover,
+.live-link:focus-visible { color: var(--accent); }
+
+.page-path {
+  display: block;
+  margin-top: 0.1rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+abbr[title],
+time[title] {
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border-strong);
+  cursor: help;
+}
+tbody tr:hover { background: var(--bg-sunken); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- issues ---------------------------------------------------------- */
+
+.issue {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0.85rem 0;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.issue-head { padding: 1rem 1.15rem; }
+.issue-head h3 { margin: 0 0 0.35rem; font-size: 1.02rem; }
+.issue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.impact {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: 0.25rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+.impact-critical { color: var(--critical); }
+.impact-serious  { color: var(--serious); }
+.impact-moderate { color: var(--moderate); }
+.impact-minor    { color: var(--minor); }
+.impact-none     { color: var(--text-muted); }
+
+/* ---- disclosure / node lists ----------------------------------------- */
+
+details {
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+details > summary {
+  cursor: pointer;
+  padding: 0.7rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--text-muted);
+  list-style: none;
+}
+details > summary::-webkit-details-marker { display: none; }
+/* Chevron lives in the markup now, so it can be the same icon as everywhere
+   else rather than a character the font may or may not have. */
+details > summary .disclosure {
+  transition: transform 0.15s ease;
+  margin-right: 0.15rem;
+}
+details[open] > summary .disclosure { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  details > summary .disclosure { transition: none; }
+}
+details > summary:hover { color: var(--text); }
+
+.nodes { margin: 0; padding: 0 1.15rem 1rem; list-style: none; }
+.node {
+  border-top: 1px solid var(--border);
+  padding: 0.85rem 0;
+}
+.node:first-child { border-top: none; }
+.node-selector {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--accent);
+  word-break: break-all;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.node-snippet {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.55rem 0.7rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 0.4rem;
+}
+.node-explanation {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---- screenshot overlay ---------------------------------------------- */
+
+.shot-figure { margin: 0 0 2rem; }
+
+/* Scroll frame. Deliberately NOT the positioning context — its height is
+   clamped, and percentage-positioned boxes must resolve against the image. */
+.shot {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  max-height: 70vh;
+  overflow: auto;
+}
+/* Positioning context, height driven by the image. */
+.shot-inner { position: relative; display: block; }
+.shot img { display: block; width: 100%; height: auto; }
+
+.shot-box {
+  position: absolute;
+  border: 2px solid var(--poor);
+  background: rgba(163, 22, 26, 0.14);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.shot-box:hover { background: rgba(26, 79, 160, 0.2); border-color: var(--accent); }
+.shot-box.is-active {
+  border-color: var(--accent);
+  background: rgba(26, 79, 160, 0.28);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+/* The number is the mapping — it must read without colour, hover, or JS. */
+.shot-box-num {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 9px;
+  background: var(--poor);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
+}
+.shot-box:hover .shot-box-num,
+.shot-box.is-active .shot-box-num { background: var(--accent); }
+
+/* Matching badge on the finding itself. */
+.finding-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  margin-right: 0.4rem;
+  border-radius: 10px;
+  background: var(--poor);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.05em;
+}
+
+/* Brief flash when a box scrolls its finding into view. */
+@keyframes finding-flash {
+  from { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent); }
+  to   { background: var(--bg-raised);   box-shadow: 0 0 0 3px transparent; }
+}
+.issue.is-target { animation: finding-flash 1.6s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .issue.is-target { animation: none; outline: 3px solid var(--accent); }
+}
+
+.shot-caption {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin-top: 0.6rem;
+}
+
+/* ---- strategy tabs --------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin: 1.5rem 0 0;
+}
+.tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--text-muted);
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  border-radius: var(--radius) var(--radius) 0 0;
+  margin-bottom: -1px;
+}
+/* Two different controls share this look. The findings tabs are a real tablist
+   and expose aria-selected; the issues filters are toggle buttons and expose
+   aria-pressed. Both need the active style, and the correct ARIA for each is
+   not interchangeable — so the stylesheet matches both rather than the markup
+   bending to the CSS. */
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--bg-raised);
+  border-color: var(--border);
+  border-bottom: 1px solid var(--bg-raised);
+}
+.tab:hover { color: var(--text); }
+
+[role="tabpanel"] { padding-top: 1.5rem; }
+[hidden] { display: none !important; }
+
+/* ---- manual notes ---------------------------------------------------- */
+
+.manual-notes {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-raised);
+}
+.manual-notes h3:first-child { margin-top: 0; }
+.manual-notes ul { padding-left: 1.2rem; }
+.manual-notes li { margin: 0.35rem 0; }
+
+/* ---- footer ---------------------------------------------------------- */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 2.25rem 0 3rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.site-footer p { margin: 0.3rem 0; }
+
+.footer-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.75rem;
+  flex-wrap: wrap;
+}
+.footer-brand {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: none;
+}
+.footer-brand:hover,
+.footer-brand:focus-visible { color: var(--brand); }
+.pxp-lockup { display: block; height: 54px; width: auto; }
+
+.footer-text { flex: 1 1 22rem; }
+.footer-credit {
+  color: var(--text);
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem !important;
+}
+
+@media print {
+  .site-header, .site-nav, .skip-link { position: static; }
+  .tab { display: none; }
+  [role="tabpanel"][hidden] { display: block !important; }
+  details { display: block; }
+  details > summary { display: none; }
+  .shot { max-height: none; }
+  a { text-decoration: none; color: var(--text); }
+}
+
+/* ---- link integrity --------------------------------------------------- */
+
+/* Link status is a third measure alongside score and severity, so it gets its
+   own vocabulary: an outlined chip like the severity chips (categorical, not
+   graded) but always carrying an icon, so the three outcomes separate without
+   colour. Deliberately never the filled score pill — a link is not scored. */
+.link-status { font-variant-numeric: tabular-nums; }
+.link-broken       { color: var(--poor);    border-color: var(--poor); }
+.link-unverifiable { color: var(--average); border-color: var(--average); }
+.link-redirect     { color: var(--text-muted); }
+
+/* The URL is the identifier — the thing someone copies and searches for — so
+   it is set in mono and allowed to break anywhere. Long query strings would
+   otherwise force the whole card to scroll sideways on a phone. */
+.link-url {
+  margin: 0 0 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 550;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.link-ref-url {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.link-anchor { font-style: italic; }
+
+/* Anchor text and URL both need room to wrap inside a table cell. */
+.link-cell { font-weight: 400; }
+.link-cell .factor { margin-left: 0.35rem; }
+
+/* Overview preview rows: status, URL, reach. Collapses to a stack on narrow
+   screens rather than truncating the URL, which is the part worth reading. */
+.link-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  margin: 0.85rem 0 1rem;
+  overflow: hidden;
+}
+.link-preview-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+}
+.link-preview-row:first-child { border-top: none; }
+.link-preview-url {
+  flex: 1 1 20rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* The broken count on the Links page sits among three neutral scope numbers
+   and has to separate from them, so it takes the poor-score colour. Specific
+   enough to beat `.coverage a .coverage-value` (0-2-1), which would otherwise
+   win and paint it accent if the tile is ever wrapped in a link. */
+.coverage .coverage-value.is-poor { color: var(--poor); }
+
+/* The CSV is the working artifact, so the control is a real button rather than
+   a text link lost in a paragraph. */
+.download { margin: 1.25rem 0 2rem; }
+.download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.download-link:hover { background: var(--accent); color: var(--bg); }
+.download-link:hover .icon { color: currentColor; }
+.download .muted { display: block; margin-top: 0.5rem; max-width: 62ch; }
+
+/* A callout that is a warning rather than an explanation. Same shape as the
+   standard callout so it does not read as a different component. */
+.callout-warn {
+  border-left-color: var(--average);
+  background: var(--average-bg);
+}
+
+/* The Issues page cross-reference is a pointer, not a finding — quieter than
+   the issue cards around it so it does not read as a 27th issue. */
+.link-crossref { border-style: dashed; background: transparent; }

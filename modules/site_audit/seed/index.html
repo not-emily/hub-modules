@@ -1,0 +1,355 @@
+---
+layout: default
+title: Overview
+---
+
+{% assign audit = site.data.audit %}
+{% assign summary = site.data.summary %}
+
+<h1>{{ audit.client | escape }} {{ audit.audit_label_inline }}</h1>
+{% comment %}
+  Two ledes. With no Lighthouse data the usual one degrades into "scans of 0
+  key pages across , run …" — a sentence about scans that did not happen.
+{% endcomment %}
+{% if audit.has_lighthouse %}
+  <p class="lede">
+    Automated scans of {{ audit.page_count }} key page{% if audit.page_count != 1 %}s{% endif %}
+    across {{ audit.strategies | join: " and " }},
+    run <span class="nowrap">{{ audit.run_date }}</span>{% if audit.deep_dive %},
+    paired with manual review notes on each page{% endif %}.
+  </p>
+{% else %}
+  <p class="lede">
+    Every link on {{ audit.base_url | escape }} followed and checked,
+    run <span class="nowrap">{{ audit.run_date }}</span>.
+  </p>
+{% endif %}
+
+{% comment %} ---- what this audit covered ---- {% endcomment %}
+<ul class="coverage">
+  {% comment %}
+    Scan-derived tiles only when there was a scan. "0 pages scanned" beside a
+    real broken-link count reads as a failed audit rather than a different one.
+  {% endcomment %}
+  {% if audit.has_lighthouse %}
+  <li>
+    <a href="{{ '/pages/' | relative_url }}">
+      <span class="coverage-value">{{ summary.page_count }}</span>
+      <span class="coverage-label">page{% if summary.page_count != 1 %}s{% endif %} scanned</span>
+    </a>
+  </li>
+  <li>
+    <a href="{{ '/issues/' | relative_url }}">
+      <span class="coverage-value">{{ summary.issue_count }}</span>
+      <span class="coverage-label">issue{% if summary.issue_count != 1 %}s{% endif %} found</span>
+    </a>
+  </li>
+  {% endif %}
+  {% comment %}
+    Crawl scope earns a tile only when there is no scan scope to state. In a
+    full audit the strip leads with defect counts and the crawl's denominator
+    lives in the Link integrity block instead — adding it back here would put
+    two crawl tiles in one strip.
+  {% endcomment %}
+  {% if audit.has_lighthouse == false and site.data.links.crawled %}
+    <li>
+      <a href="{{ '/pages/' | relative_url }}">
+        <span class="coverage-value">{{ site.data.links.pages_crawled }}</span>
+        <span class="coverage-label">page{% if site.data.links.pages_crawled != 1 %}s{% endif %} crawled</span>
+      </a>
+    </li>
+  {% endif %}
+  {% if audit.has_lighthouse %}
+  <li>
+    {% comment %}
+      Every tile has exactly one child element — the CSS stretches that child to
+      fill the card, so a second sibling would spill out below the border.
+    {% endcomment %}
+    <span class="coverage-static">
+      <span class="coverage-value">{{ summary.element_count }}</span>
+      <span class="coverage-label">HTML elements to fix</span>
+    </span>
+  </li>
+  {% endif %}
+  {% comment %}
+    The headline number, not the scope number. This strip is already a mixed
+    dashboard — "issues found" and "elements to fix" are both findings — so a
+    defect count belongs here and the crawl's own denominator does not. The
+    scope it came from is stated in the Link integrity block below, which reads
+    "N broken links across M crawled pages", so nothing is lost by keeping the
+    two scopes apart there rather than here.
+  {% endcomment %}
+  {% if site.data.links.crawled %}
+    <li>
+      <a href="{{ '/links/' | relative_url }}">
+        {%- comment -%}
+          Accent, not red — matching "issues found" beside it. Both are defect
+          counts, and colouring this one alarm-red would imply broken links
+          outrank two dozen accessibility failures, which they do not. The
+          Links page tiles do use red, because there the broken count sits
+          among three neutral scope numbers and needs to separate from them.
+        {%- endcomment -%}
+        <span class="coverage-value">{{ site.data.links.broken.count }}</span>
+        <span class="coverage-label">broken link{% if site.data.links.broken.count != 1 %}s{% endif %}</span>
+      </a>
+    </li>
+  {% endif %}
+  {% if audit.has_lighthouse %}
+  <li>
+    {% comment %}
+      Name the form factors rather than counting them — "2" tells the reader
+      nothing they can act on, and "mobile only" vs "mobile and desktop" is a
+      real scope difference.
+    {% endcomment %}
+    {%- capture factors -%}
+      {%- for s in audit.strategies -%}
+        {{ s | capitalize }}{% unless forloop.last %} + {% endunless %}
+      {%- endfor -%}
+    {%- endcapture -%}
+    <span class="coverage-static">
+      <span class="coverage-value is-text">{{ factors }}</span>
+      <span class="coverage-label">form factor{% if audit.strategies.size != 1 %}s{% endif %} tested</span>
+    </span>
+  </li>
+  {% endif %}
+</ul>
+
+{% comment %}
+  Two scopes of report. A deep dive includes the manual layer and says so at
+  length; the automated-only default states its scope in one line. The line
+  stays in both: it is what the scores actually mean, and it is the reason a
+  deep dive is worth commissioning.
+{% endcomment %}
+{% if audit.has_lighthouse == false %}
+  {% comment %}
+    Nothing was scanned, so the WCAG scope note has nothing to qualify. State
+    this report's own scope instead — it is a narrower deliverable and must
+    not be mistaken for a full audit.
+  {% endcomment %}
+  <p class="scope-note">
+    This audit covers link integrity only. It does not include the Lighthouse
+    performance, accessibility, best-practices or SEO checks that a full site
+    audit carries.
+  </p>
+{% elsif audit.deep_dive %}
+  <div class="callout">
+    <p><strong>How to read this report.</strong> The scores below come from
+    Lighthouse, which runs the axe accessibility engine. Automated tooling
+    reliably catches around a third of WCAG success criteria — things a machine
+    can see, like missing alt attributes and insufficient colour contrast.</p>
+    <p>It cannot judge whether alt text is <em>meaningful</em>, whether focus
+    order makes sense, or whether a component is operable by keyboard. Those are
+    covered in the manual review section on each page. <strong>A score of 100 is
+    not a statement of compliance.</strong></p>
+  </div>
+{% else %}
+  <p class="scope-note">
+    Automated checks only. These cover part of WCAG — a manual review covers
+    what a machine can't test, such as keyboard operation, focus order and
+    whether alt text is meaningful.
+  </p>
+{% endif %}
+
+{% comment %}
+  One card per category, form factors side by side inside it. Grouping this way
+  puts the numbers you actually compare next to each other, and keeps four
+  cards instead of eight — a category x form-factor grid wrapped into an
+  orphan row and read as clutter.
+{% endcomment %}
+{% if audit.has_lighthouse %}
+<h2>Average scores</h2>
+<div class="score-grid">
+  {% for cat in audit.categories %}
+    <div class="score-tile">
+      <span class="label">{{ cat.label }}</span>
+      <div class="score-split">
+        {% for strategy in audit.strategies %}
+          {% if cat.display == "fraction" %}
+            {%- comment -%}
+            Scored n-of-m, so the tile shows a mean fraction rather than a
+            mean percentage. One decimal: rounding 4.5 of 6 up to 5 would
+            claim a pass rate no page in the run actually reached.
+            {%- endcomment -%}
+            {% assign fr = summary.average_fractions[strategy][cat.key] %}
+            {% if fr == nil %}{% assign cls = "s-none" %}
+            {% elsif fr.passed >= fr.total %}{% assign cls = "s-good" %}
+            {% else %}
+              {% assign half = fr.total | divided_by: 2.0 %}
+              {% if fr.passed >= half %}{% assign cls = "s-average" %}
+              {% else %}{% assign cls = "s-poor" %}{% endif %}
+            {% endif %}
+            <div class="score-part">
+              <span class="value {{ cls }}">{% if fr == nil %}—{% else %}{{ fr.passed }}<span class="value-denom">/{{ fr.total }}</span>{% endif %}</span>
+              <span class="sublabel">{{ strategy }}</span>
+            </div>
+          {% else %}
+            {% assign avg = summary.averages[strategy] %}
+            {% assign v = avg[cat.key] %}
+            {% if v == nil %}{% assign cls = "s-none" %}
+            {% elsif v >= 90 %}{% assign cls = "s-good" %}
+            {% elsif v >= 50 %}{% assign cls = "s-average" %}
+            {% else %}{% assign cls = "s-poor" %}{% endif %}
+            <div class="score-part">
+              <span class="value {{ cls }}">{% if v == nil %}—{% else %}{{ v }}{% endif %}</span>
+              <span class="sublabel">{{ strategy }}</span>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<h2>Scores by page</h2>
+<div class="table-scroll">
+  <table>
+    <caption>
+      Lighthouse category scores, 0–100.
+      {% include icon.html name="check" %} 90+ &nbsp;
+      {% include icon.html name="exclamation" %} 50–89 &nbsp;
+      {% include icon.html name="times" %} under 50
+      {%- assign frac_cats = audit.categories | where: "display", "fraction" -%}
+      {%- if frac_cats.size > 0 %}
+        <br>
+        {% for c in frac_cats %}{{ c.label }}{% unless forloop.last %}, {% endunless %}{% endfor %}
+        {% if frac_cats.size == 1 %}is{% else %}are{% endif %} scored as a
+        fraction of checks passed rather than out of 100.
+      {%- endif %}
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col" rowspan="2">Page</th>
+        {% for strategy in audit.strategies %}
+          <th scope="colgroup" colspan="{{ audit.categories.size }}" style="text-align:center">
+            {{ strategy | capitalize }}
+          </th>
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for strategy in audit.strategies %}
+          {% for cat in audit.categories %}
+            <th scope="col" style="text-align:right">
+              <abbr title="{{ cat.label }} — {{ strategy }}">{{ cat.short }}</abbr>
+            </th>
+          {% endfor %}
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% assign base = audit.base_url %}
+      {% for p in summary.pages %}
+        <tr>
+          <th scope="row" class="page-cell">
+            {% include page-cell.html page=p base_url=base %}
+          </th>
+          {% for strategy in audit.strategies %}
+            {% assign scores = p.scores[strategy] %}
+            {% for cat in audit.categories %}
+              <td class="num">
+                {% if cat.display == "fraction" %}
+                  {% assign fr = p.fractions[strategy][cat.key] %}
+                  {% include score-badge.html passed=fr.passed total=fr.total label=cat.label %}
+                {% else %}
+                  {% assign cell = scores[cat.key] %}
+                  {% include score-badge.html score=cell label=cat.label %}
+                {% endif %}
+              </td>
+            {% endfor %}
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}{% comment %} end has_lighthouse: scores {% endcomment %}
+
+{% comment %}
+  Was hardcoded to accessibility, which left a performance- or SEO-only audit
+  with no headline section at all. Now spans whatever was actually scanned.
+{% endcomment %}
+{% assign top = summary.top_issues %}
+{% if top and top.size > 0 %}
+  <h2>Most widespread issues</h2>
+  <p class="muted">
+    {{ summary.issue_count }} distinct
+    {% if audit.categories.size == 1 %}{{ audit.categories[0].label | downcase }} {% endif %}
+    {% if summary.issue_count == 1 %}check fails{% else %}checks fail{% endif %}
+    somewhere on the site. These affect the most pages — fixing them once in a
+    shared template usually clears them everywhere.
+  </p>
+
+  {% for issue in top %}
+    <div class="issue">
+      <div class="issue-head">
+        <h3><a href="{{ '/issues/#' | append: issue.id | relative_url }}">{{ issue.title | escape }}</a></h3>
+        <p class="muted small">{{ issue.description | escape | truncate: 180 }}</p>
+        <p class="issue-meta">
+          {% include severity-label.html impact=issue.impact %}
+          <span>{{ issue.page_count }} page{% if issue.page_count != 1 %}s{% endif %}</span>
+          {% if issue.element_scoped %}<span>{{ issue.element_count }} element{% if issue.element_count != 1 %}s{% endif %}</span>{% else %}<span>page-level</span>{% endif %}
+        </p>
+      </div>
+    </div>
+  {% endfor %}
+
+  <p><a href="{{ '/issues/' | relative_url }}">See all {{ summary.issue_count }} issues {% include icon.html name="arrow-right" %}</a></p>
+{% endif %}
+
+{% comment %}
+  ---- link integrity ----
+  A findings block, deliberately not part of the coverage strip above: that
+  strip states what was covered, and a defect count is a different kind of
+  number. Kept short here — the Links page is where the detail lives.
+{% endcomment %}
+{% if site.data.links.crawled %}
+  {% assign lk = site.data.links %}
+  <h2>Link integrity</h2>
+  {% if lk.blocked %}
+    <p class="scope-note">
+      The link crawl was stopped early by the site, so these counts are
+      partial. See <a href="{{ '/links/' | relative_url }}">Links</a>.
+    </p>
+  {% endif %}
+  {% if lk.broken.count > 0 %}
+    <p class="muted">
+      {{ lk.broken.count }} broken link{% if lk.broken.count != 1 %}s{% endif %}
+      across {{ lk.pages_crawled }} crawled page{% if lk.pages_crawled != 1 %}s{% endif %}
+      ({{ lk.broken.internal_count }} pointing at this site,
+      {{ lk.broken.external_count }} pointing elsewhere).
+      {% if lk.unverifiable.count > 0 %}
+        A further {{ lk.unverifiable.count }} could not be confirmed either way
+        and {% if lk.unverifiable.count == 1 %}is{% else %}are{% endif %} listed
+        separately rather than counted as faults.
+      {% endif %}
+    </p>
+    <div class="link-preview">
+      {% assign preview = lk.broken.internal | concat: lk.broken.external | sort: "referrer_count" | reverse %}
+      {% for link in preview limit: 5 %}
+        <div class="link-preview-row">
+          <span class="factor link-status link-broken">{% include icon.html name="times" %} {{ link.status_label }}</span>
+          <span class="link-preview-url">{{ link.url | escape }}</span>
+          <span class="muted small nowrap">{{ link.referrer_count }} place{% if link.referrer_count != 1 %}s{% endif %}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <p><a href="{{ '/links/' | relative_url }}">See all link findings {% include icon.html name="arrow-right" %}</a></p>
+  {% else %}
+    <p class="muted">
+      No broken links found across {{ lk.urls_checked }} link{% if lk.urls_checked != 1 %}s{% endif %}
+      checked on {{ lk.pages_crawled }} page{% if lk.pages_crawled != 1 %}s{% endif %}.
+      <a href="{{ '/links/' | relative_url }}">See what was checked {% include icon.html name="arrow-right" %}</a>
+    </p>
+  {% endif %}
+{% endif %}
+
+{% comment %}
+  The summary line is derived — it was hand-typed in the client config and went
+  stale the moment the audit covered more than accessibility. Anything in the
+  config `notes` field is now genuine commentary, printed after it.
+{% endcomment %}
+<h2>Notes</h2>
+<p>{{ audit.audit_label }}, {{ audit.run_date_long }}.</p>
+{% if audit.notes and audit.notes != "" %}
+  <p>{{ audit.notes | escape }}</p>
+{% endif %}

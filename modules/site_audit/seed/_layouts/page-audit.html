@@ -1,0 +1,478 @@
+---
+layout: default
+---
+
+{% assign audit = site.data.audit %}
+{% assign data = site.data.pages[page.slug] %}
+
+<p class="small"><a href="{{ '/pages/' | relative_url }}">{% include icon.html name="arrow-left" %} All pages</a></p>
+
+<h1>{{ page.title | escape }}</h1>
+<p class="lede">
+  <a href="{{ page.url_scanned | default: data.url | escape }}" target="_blank" rel="noopener">{{ data.url | escape }} {% include icon-external.html %}<span class="sr-only">, opens in a new tab</span></a>
+</p>
+
+{% comment %}
+  Missing scan data is only a fault when a scan was expected. In a links-only
+  audit every page has none by definition, and an error callout on all of them
+  would report the report itself as broken.
+{% endcomment %}
+{% if data == nil and audit.has_lighthouse == false %}
+  <p class="scope-note">
+    This audit covers link integrity only, so there are no scores for this
+    page. Any links found on it are listed below.
+  </p>
+{% elsif data == nil %}
+  <div class="callout">
+    <p>No scan data for this page. Either the fetch failed, or the slug in
+    <code>clients/&lt;client&gt;/config.json</code> no longer matches
+    <code>_data/pages/{{ page.slug }}.json</code>.</p>
+  </div>
+{% else %}
+
+  {% comment %}
+    ---- score summary ----
+    Same card shape as the overview: one per category, form factors side by
+    side. Replaces the old pair of per-strategy sections, which repeated every
+    category heading twice.
+  {% endcomment %}
+  <h2 style="margin-top:1.75rem">Scores</h2>
+  <div class="score-grid">
+    {% for cat in audit.categories %}
+      <div class="score-tile">
+        <span class="label">{{ cat.label }}</span>
+        <div class="score-split">
+          {% for strategy in audit.strategies %}
+            {% assign r = data.strategies[strategy] %}
+            {% if r %}
+              {% if cat.display == "fraction" %}
+                {%- comment -%}
+                n-of-m, not a percentage — see the note in score-badge.html.
+                {%- endcomment -%}
+                {% assign fr = r.fractions[cat.key] %}
+                {% if fr == nil %}{% assign cls = "s-none" %}
+                {% elsif fr.passed >= fr.total %}{% assign cls = "s-good" %}
+                {% else %}
+                  {% assign half = fr.total | divided_by: 2.0 %}
+                  {% if fr.passed >= half %}{% assign cls = "s-average" %}
+                  {% else %}{% assign cls = "s-poor" %}{% endif %}
+                {% endif %}
+                <div class="score-part">
+                  <span class="value {{ cls }}">{% if fr == nil %}—{% else %}{{ fr.passed }}<span class="value-denom">/{{ fr.total }}</span>{% endif %}</span>
+                  <span class="sublabel">{{ strategy }}</span>
+                </div>
+              {% else %}
+                {% assign v = r.scores[cat.key] %}
+                {% if v == nil %}{% assign cls = "s-none" %}
+                {% elsif v >= 90 %}{% assign cls = "s-good" %}
+                {% elsif v >= 50 %}{% assign cls = "s-average" %}
+                {% else %}{% assign cls = "s-poor" %}{% endif %}
+                <div class="score-part">
+                  <span class="value {{ cls }}">{% if v == nil %}—{% else %}{{ v }}{% endif %}</span>
+                  <span class="sublabel">{{ strategy }}</span>
+                </div>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% comment %} ---- tabbed detail per form factor ---- {% endcomment %}
+  <h2>Findings</h2>
+
+  <div class="tabs" role="tablist" aria-label="Form factor">
+    {% for strategy in audit.strategies %}
+      {% if data.strategies[strategy] %}
+        <button type="button" class="tab" role="tab"
+                id="tab-{{ strategy }}"
+                aria-controls="panel-{{ strategy }}"
+                aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                tabindex="{% if forloop.first %}0{% else %}-1{% endif %}">
+          {{ strategy | capitalize }}
+        </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% for strategy in audit.strategies %}
+    {% assign r = data.strategies[strategy] %}
+    {% if r %}
+      <div role="tabpanel" id="panel-{{ strategy }}" aria-labelledby="tab-{{ strategy }}"
+           tabindex="0"{% unless forloop.first %} hidden{% endunless %}>
+
+        {% comment %} ---- screenshot with violation overlay ---- {% endcomment %}
+        {% if r.screenshot %}
+          <figure class="shot-figure">
+            {% comment %}
+              Cap at the screenshot's natural width. A 412px mobile capture
+              stretched to fill a 1080px column is unreadably soft, and the
+              highlight boxes are positioned in percentages so they track the
+              container at any width.
+            {% endcomment %}
+            {% comment %}
+              Two nested elements on purpose. .shot is the scroll frame and is
+              height-clamped; .shot-inner is the positioning context and takes
+              its height from the image. Percentage top/height on the boxes
+              resolve against the *containing block*, so if the clamped frame
+              were also the containing block every box would be squashed to a
+              sliver of 70vh instead of tracking the full-page screenshot.
+            {% endcomment %}
+            <div class="shot" id="shot-{{ strategy }}"
+                 style="max-width:{{ r.screenshot.width }}px">
+              <div class="shot-inner">
+                <img src="{{ '/assets/screenshots/' | append: r.screenshot.file | relative_url }}"
+                     alt="Full-page screenshot of {{ page.title | escape }} as rendered during the {{ strategy }} scan."
+                     width="{{ r.screenshot.width }}" height="{{ r.screenshot.height }}"
+                     loading="lazy">
+                {% comment %}
+                  Findings are numbered in one running sequence across
+                  categories. The findings list below re-runs the identical
+                  loop order, so badge N always matches finding N.
+
+                  Boxes are aria-hidden and not focusable: the screenshot is a
+                  visual aid, and every box duplicates a finding that is already
+                  in the list below. Making 68 overlays focusable would put that
+                  many redundant tab stops in front of the real content. Click
+                  is a mouse shortcut, never the only route.
+                {% endcomment %}
+                {% assign fnum = 0 %}
+                {% for cat in audit.categories %}
+                  {% for a in r.audits[cat.key].failed %}
+                    {% assign fnum = fnum | plus: 1 %}
+                    {% for n in a.nodes %}
+                      {% if n.rect %}
+                        <span class="shot-box"
+                              aria-hidden="true"
+                              data-node="{{ strategy }}-{{ n.lh_id }}"
+                              data-finding="finding-{{ strategy }}-{{ fnum }}"
+                              title="{{ fnum }}. {{ a.title | escape }}"
+                              style="left:{{ n.rect.left }}%;top:{{ n.rect.top }}%;width:{{ n.rect.width }}%;height:{{ n.rect.height }}%"><span class="shot-box-num">{{ fnum }}</span></span>
+                      {% endif %}
+                    {% endfor %}
+                  {% endfor %}
+                {% endfor %}
+              </div>
+            </div>
+            <figcaption class="shot-caption">
+              Boxes mark elements that failed a check. Hover or focus an element
+              in the lists below to highlight it here.
+            </figcaption>
+          </figure>
+        {% endif %}
+
+        {% comment %}
+          ---- failing checks, accessibility first ----
+          Same loop order as the overlay above, so the counter stays in step.
+        {% endcomment %}
+        {% assign fnum = 0 %}
+        {% for cat in audit.categories %}
+          {% assign bucket = r.audits[cat.key] %}
+          {% if bucket and bucket.failed.size > 0 %}
+            <h3>{{ cat.label }} — {{ bucket.failed.size }} failing check{% if bucket.failed.size != 1 %}s{% endif %}</h3>
+
+            {% for a in bucket.failed %}
+              {% assign fnum = fnum | plus: 1 %}
+              <article class="issue" id="finding-{{ strategy }}-{{ fnum }}">
+                <div class="issue-head">
+                  <h4 style="margin:0 0 .35rem;font-size:1rem">
+                    <span class="finding-num" aria-hidden="true">{{ fnum }}</span>
+                    <span class="sr-only">Finding {{ fnum }}:</span>
+                    {{ a.title | escape }}
+                  </h4>
+                  <p class="muted small" style="margin:0">{{ a.description | escape }}</p>
+                  <p class="issue-meta">
+                    {% include severity-label.html impact=a.impact %}
+                    {% if a.weight > 0 %}<span>weight {{ a.weight }}</span>{% endif %}
+                    {% if a.display_value %}<span>{{ a.display_value | escape }}</span>{% endif %}
+                    <span>{{ a.node_count }} element{% if a.node_count != 1 %}s{% endif %}</span>
+                    {% if a.doc_url %}<a href="{{ a.doc_url | escape }}" target="_blank" rel="noopener">How to fix {% include icon-external.html %}<span class="sr-only">, opens in a new tab</span></a>{% endif %}
+                  </p>
+                </div>
+
+                {% if a.nodes.size > 0 %}
+                  <details>
+                    <summary>{% include icon.html name="chevron" class="disclosure" %}Show the {{ a.nodes.size }} element{% if a.nodes.size != 1 %}s{% endif %} at fault</summary>
+                    <ul class="nodes">
+                      {% for n in a.nodes %}
+                        <li class="node" data-node="{{ strategy }}-{{ n.lh_id }}" tabindex="0">
+                          {% if n.selector != "" %}<code class="node-selector">{{ n.selector | escape }}</code>{% endif %}
+                          {% if n.snippet != "" %}<pre class="node-snippet">{{ n.snippet | escape }}</pre>{% endif %}
+                          {% if n.explanation != "" %}<p class="node-explanation">{{ n.explanation | escape }}</p>{% endif %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                    {% if a.nodes_truncated %}
+                      <p class="small muted" style="padding:0 1.15rem 1rem">
+                        Showing the first {{ a.nodes.size }} of {{ a.node_count }} elements.
+                      </p>
+                    {% endif %}
+                  </details>
+                {% endif %}
+              </article>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+
+        {% comment %} ---- lab metrics: measurements, not pass/fail ---- {% endcomment %}
+        {% if r.metrics and r.metrics.size > 0 %}
+          <h3>Lab metrics</h3>
+          <p class="muted small">
+            Measured in a simulated {{ strategy }} environment. These are
+            readings, not checks — treat them as context for the performance
+            score rather than defects to close.
+          </p>
+          <div class="score-grid">
+            {% for m in r.metrics %}
+              {% assign mv = m[1] %}
+              {% if mv.score == nil %}{% assign cls = "s-none" %}
+              {% elsif mv.score >= 90 %}{% assign cls = "s-good" %}
+              {% elsif mv.score >= 50 %}{% assign cls = "s-average" %}
+              {% else %}{% assign cls = "s-poor" %}{% endif %}
+              <div class="score-tile">
+                <span class="value {{ cls }}" style="font-size:1.5rem">{{ mv.value | default: "—" }}</span>
+                <span class="label">{{ mv.title }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% comment %} ---- graded diagnostics / savings opportunities ---- {% endcomment %}
+        {% for cat in audit.categories %}
+          {% assign bucket = r.audits[cat.key] %}
+          {% if bucket and bucket.opportunity.size > 0 %}
+            <h3>{{ cat.label }} — {{ bucket.opportunity.size }} opportunit{% if bucket.opportunity.size == 1 %}y{% else %}ies{% endif %}</h3>
+            {% for a in bucket.opportunity %}
+              <article class="issue">
+                <div class="issue-head">
+                  <h4 style="margin:0 0 .35rem;font-size:1rem">{{ a.title | escape }}</h4>
+                  <p class="muted small" style="margin:0">{{ a.description | escape }}</p>
+                  <p class="issue-meta">
+                    {% if a.display_value %}<span>{{ a.display_value | escape }}</span>{% endif %}
+                    {% if a.score != nil %}<span>score {{ a.score }}</span>{% endif %}
+                    {% if a.doc_url %}<a href="{{ a.doc_url | escape }}" target="_blank" rel="noopener">How to fix {% include icon-external.html %}<span class="sr-only">, opens in a new tab</span></a>{% endif %}
+                  </p>
+                </div>
+              </article>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+
+        {% comment %}
+          ---- Lighthouse's own manual checklist ----
+          Deep dive only: it is a to-do list for manual work, so in a
+          scores-only report it would raise questions nothing answers.
+        {% endcomment %}
+        {% assign a11y = r.audits.accessibility %}
+        {% if audit.deep_dive and a11y and a11y.manual.size > 0 %}
+          <h3>Requires manual verification</h3>
+          <p class="muted small">
+            Lighthouse flags these as impossible to test automatically. Record
+            your findings in the manual review section below.
+          </p>
+          <div class="issue">
+            <ul class="nodes" style="padding:1rem 1.15rem">
+              {% for a in a11y.manual %}
+                <li class="node">
+                  <strong>{{ a.title | escape }}</strong>
+                  <p class="node-explanation">{{ a.description | escape }}</p>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {% comment %} ---- passed / not applicable, collapsed ---- {% endcomment %}
+        {% for cat in audit.categories %}
+          {% assign bucket = r.audits[cat.key] %}
+          {% if bucket and bucket.passed.size > 0 %}
+            <details style="border:1px solid var(--border);border-radius:var(--radius);margin:.85rem 0">
+              <summary>{% include icon.html name="chevron" class="disclosure" %}{{ cat.label }}: {{ bucket.passed.size }} check{% if bucket.passed.size != 1 %}s{% endif %} passed{% if bucket.not_applicable.size > 0 %}, {{ bucket.not_applicable.size }} not applicable{% endif %}</summary>
+              <ul class="nodes">
+                {% for a in bucket.passed %}
+                  <li class="node">{% include icon.html name="check" class="ico-good" %} {{ a.title | escape }}</li>
+                {% endfor %}
+                {% for a in bucket.not_applicable %}
+                  <li class="node muted">{% include icon.html name="minus" %} {{ a.title | escape }} <span class="small">(not applicable)</span></li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endif %}
+        {% endfor %}
+
+        <p class="small muted" style="margin-top:2rem">
+          {% comment %}
+            Date on the page, exact instant in the markup. The minute is real
+            provenance — performance varies with time of day — but printing it
+            is false precision to a reader and invites "it was probably peak
+            traffic". A <time> element keeps it machine-readable and on hover
+            without putting it in front of the client.
+          {% endcomment %}
+          Scanned <time datetime="{{ r.fetch_time }}"
+                        title="{{ r.fetch_time | date: '%B %-d, %Y at %H:%M UTC' }}">{{ r.fetch_time | date: "%B %-d, %Y" }}</time>
+          {% if r.lighthouse_version %}· Lighthouse {{ r.lighthouse_version }}{% endif %}
+          {% if r.final_url and r.final_url != data.url %}· resolved to {{ r.final_url | escape }}{% endif %}
+        </p>
+      </div>
+    {% endif %}
+  {% endfor %}
+
+{% endif %}
+
+{% comment %}
+  ---- links found on this page ----
+  Outside the `data` guard on purpose: link findings come from the crawl, not
+  from Lighthouse, so a page with no scan data can still have them. This is
+  also where they are actually fixable — the Links page groups by URL, which
+  answers "what is wrong"; this answers "what do I change on this page".
+{% endcomment %}
+{% assign page_links = site.data.links.by_page[page.slug] %}
+{% if page_links and page_links.size > 0 %}
+  <h2>Links on this page</h2>
+  <p class="muted small">
+    {% assign broken_here = page_links | where: "bucket", "broken" %}
+    {% if broken_here.size > 0 %}
+      {{ broken_here.size }} broken link{% if broken_here.size != 1 %}s{% endif %}
+      found on this page.
+    {% else %}
+      No broken links on this page, but some could not be confirmed.
+    {% endif %}
+    Full detail on the <a href="{{ '/links/' | relative_url }}">Links</a> page.
+  </p>
+  <div class="table-scroll">
+    <table>
+      <caption>
+        Links on this page that did not resolve cleanly. A link marked
+        &ldquo;could not confirm&rdquo; is not necessarily broken — see the
+        Links page for what that means.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Status</th>
+          <th scope="col">Link</th>
+          <th scope="col">Link text</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in page_links %}
+          <tr>
+            <td>
+              {%- if l.bucket == 'broken' -%}
+                {%- assign ico = 'times' -%}
+              {%- else -%}
+                {%- assign ico = 'circle-exclamation' -%}
+              {%- endif -%}
+              <span class="factor link-status link-{{ l.bucket }}">
+                {% include icon.html name=ico %} {{ l.status_label }}
+              </span>
+            </td>
+            <th scope="row" class="link-cell">
+              <span class="link-ref-url">{{ l.url | escape }}</span>
+              {% unless l.internal %}<span class="factor">external</span>{% endunless %}
+              {% if l.referrer_count > 1 %}
+                <span class="muted small nowrap">also on {{ l.referrer_count | minus: 1 }} other page{% if l.referrer_count != 2 %}s{% endif %}</span>
+              {% endif %}
+            </th>
+            <td>
+              {% if l.anchor and l.anchor != "" %}
+                &ldquo;{{ l.anchor | escape | truncate: 70 }}&rdquo;
+              {% else %}
+                <span class="muted">no link text</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% comment %} ---- hand-written commentary from the stub body ---- {% endcomment %}
+{% if audit.deep_dive %}
+  <h2>Manual review</h2>
+  <div class="manual-notes">
+    {{ content }}
+  </div>
+{% endif %}
+
+<script>
+(function () {
+  // --- tabs -------------------------------------------------------------
+  var tablist = document.querySelector('[role="tablist"]');
+  if (tablist) {
+    var tabs = Array.prototype.slice.call(tablist.querySelectorAll('[role="tab"]'));
+
+    function select(tab) {
+      tabs.forEach(function (t) {
+        var selected = t === tab;
+        t.setAttribute('aria-selected', String(selected));
+        t.tabIndex = selected ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
+      });
+      tab.focus();
+    }
+
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function () { select(tab); });
+      tab.addEventListener('keydown', function (e) {
+        var next = null;
+        if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+        if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+        if (e.key === 'Home') next = tabs[0];
+        if (e.key === 'End') next = tabs[tabs.length - 1];
+        if (next) { e.preventDefault(); select(next); }
+      });
+    });
+  }
+
+  // --- click a box to reach its finding ---------------------------------
+  // A mouse shortcut only. The numbered badge already states the mapping, and
+  // the findings list below is reachable normally, so nothing here is the sole
+  // route to anything.
+  var reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll('.shot-box[data-finding]').forEach(function (box) {
+    box.addEventListener('click', function () {
+      var target = document.getElementById(box.dataset.finding);
+      if (!target) return;
+
+      target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      target.classList.remove('is-target');
+      void target.offsetWidth;          // restart the animation if re-clicked
+      target.classList.add('is-target');
+      setTimeout(function () { target.classList.remove('is-target'); }, 1800);
+    });
+  });
+
+  // --- link node list items to their screenshot boxes -------------------
+  function boxesFor(key) {
+    return document.querySelectorAll('.shot-box[data-node="' + CSS.escape(key) + '"]');
+  }
+
+  document.querySelectorAll('.node[data-node]').forEach(function (node) {
+    var key = node.dataset.node;
+
+    function on() {
+      boxesFor(key).forEach(function (b) {
+        b.classList.add('is-active');
+        // Bring it into view inside the scrollable screenshot frame.
+        var frame = b.closest('.shot');
+        if (frame) {
+          var target = b.offsetTop - frame.clientHeight / 2 + b.offsetHeight / 2;
+          frame.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+        }
+      });
+    }
+    function off() {
+      boxesFor(key).forEach(function (b) { b.classList.remove('is-active'); });
+    }
+
+    node.addEventListener('mouseenter', on);
+    node.addEventListener('mouseleave', off);
+    node.addEventListener('focus', on);
+    node.addEventListener('blur', off);
+  });
+})();
+</script>

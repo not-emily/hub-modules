@@ -1,0 +1,691 @@
+{
+  "name": "site_audit",
+  "version": "1.2.0",
+  "description": "Keep the client list and the audit history for website audits, and build the report from a run's captured archives",
+  "keywords": [
+    "audit",
+    "site audit",
+    "website audit",
+    "pagespeed",
+    "lighthouse",
+    "crawl",
+    "broken links",
+    "seo",
+    "client site"
+  ],
+  "entities": [
+    {
+      "name": "audit_clients",
+      "aliases": [
+        "audit client",
+        "audit clients",
+        "site audit client",
+        "site audit clients",
+        "audited sites",
+        "audit roster"
+      ],
+      "actions": {
+        "add": "add_client",
+        "list": "list_clients",
+        "get": "get_client",
+        "set": "update_client",
+        "remove": "remove_client",
+        "count": "list_clients"
+      }
+    },
+    {
+      "name": "audit_pages",
+      "aliases": [
+        "audit page",
+        "audit pages",
+        "scanned page",
+        "scanned pages",
+        "audited page",
+        "audited pages"
+      ],
+      "actions": {
+        "add": "add_page",
+        "remove": "remove_page",
+        "list": "get_client"
+      }
+    },
+    {
+      "name": "audit_runs",
+      "aliases": [
+        "audit run",
+        "audit runs",
+        "audit history",
+        "audit results",
+        "site audit history"
+      ],
+      "actions": {
+        "list": "list_runs",
+        "get": "get_run",
+        "clear": "prune_runs",
+        "count": "list_runs"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "add_client",
+      "description": "Add a website to the audit roster. Pages are added afterwards, one at a time, with add_page",
+      "collect_input": true,
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The client's display name, as it should read in the report",
+          "example": "Big Red Jelly"
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "required": true,
+          "description": "The site's home page. This sets the crawl boundary \u2014 URLs outside it are status-checked but never followed",
+          "example": "https://bigredjelly.com"
+        },
+        {
+          "name": "slug",
+          "type": "string",
+          "required": false,
+          "description": "Short handle used in file paths and when asking for this client. Derived from the name when omitted, so set it when you want something shorter",
+          "example": "brj"
+        },
+        {
+          "name": "cloudflare_project",
+          "type": "string",
+          "required": false,
+          "description": "Cloudflare Pages project the report publishes to. Lowercase letters, numbers and hyphens only. Defaults to the slug followed by -audit",
+          "example": "brj-audit"
+        },
+        {
+          "name": "cloudflare_production_branch",
+          "type": "string",
+          "required": false,
+          "description": "Branch whose deployments publish to the live report. Any other branch becomes a preview. Left unset, the project's own production branch is used"
+        },
+        {
+          "name": "crawl",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Run the whole-site link check as part of an audit. It costs no API quota, only time"
+        },
+        {
+          "name": "crawl_depth",
+          "type": "number",
+          "required": false,
+          "default": 3,
+          "description": "How many clicks from a scored page the link check follows links"
+        },
+        {
+          "name": "deep_dive",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include the manual review checklist in the report, for an audit a human will finish by hand"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false,
+          "description": "Anything worth remembering about this client"
+        }
+      ],
+      "output_description": "The slug the client was stored under, the record as written, and the file it was written to"
+    },
+    {
+      "name": "list_clients",
+      "description": "List every website on the audit roster, with how many pages each has and when it was last audited",
+      "params": [],
+      "output_description": "A clients array of {slug, name, base_url, page_count, crawl, last_run, last_status} and a count"
+    },
+    {
+      "name": "get_client",
+      "description": "Look up one audit client in full, including the page list an audit will score",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        }
+      ],
+      "output_description": "The slug and the full client record: name, base_url, cloudflare_project, cloudflare_production_branch, crawl, crawl_depth, deep_dive, notes and pages[{label, url, slug}]"
+    },
+    {
+      "name": "update_client",
+      "description": "Change settings on an audit client. Only the fields you give are touched; the rest are left as they are. Use add_page and remove_page for the page list",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "New display name. The slug does not change with it"
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "required": false,
+          "description": "New home page, which moves the crawl boundary"
+        },
+        {
+          "name": "cloudflare_project",
+          "type": "string",
+          "required": false,
+          "description": "Cloudflare Pages project the report publishes to"
+        },
+        {
+          "name": "cloudflare_production_branch",
+          "type": "string",
+          "required": false,
+          "description": "Branch whose deployments publish to the live report"
+        },
+        {
+          "name": "crawl",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether an audit runs the whole-site link check"
+        },
+        {
+          "name": "crawl_depth",
+          "type": "number",
+          "required": false,
+          "description": "How many clicks from a scored page the link check follows links"
+        },
+        {
+          "name": "deep_dive",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the report includes the manual review checklist"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false,
+          "description": "Replacement notes"
+        },
+        {
+          "name": "clear",
+          "type": "array",
+          "required": false,
+          "description": "Fields to reset to their default instead of setting. An empty value cannot do this, because an empty param reads as one that was never given",
+          "example": [
+            "notes",
+            "cloudflare_production_branch"
+          ],
+          "items": {
+            "name": "field",
+            "type": "string",
+            "description": "Name of a field to reset"
+          }
+        }
+      ],
+      "output_description": "The slug, which fields changed, which were cleared, and the updated record"
+    },
+    {
+      "name": "remove_client",
+      "description": "Take a website off the audit roster. Its past runs are kept unless you ask for them too",
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "delete_runs",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Also delete every recorded run for this client and the archives stored with them. This cannot be undone"
+        }
+      ],
+      "output_description": "The slug removed, how many runs were deleted or kept, and the bytes reclaimed"
+    },
+    {
+      "name": "add_page",
+      "description": "Add a page to the list an audit scores for a client",
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "description": "How the page is named in the report",
+          "example": "Proven Process"
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": true,
+          "description": "The page's full URL. It must be absolute \u2014 the client's base_url is not joined onto it",
+          "example": "https://bigredjelly.com/proven-process/"
+        },
+        {
+          "name": "slug",
+          "type": "string",
+          "required": false,
+          "description": "Name for this page's archive files. Derived from the URL path when omitted, which is nearly always right",
+          "example": "proven-process"
+        }
+      ],
+      "output_description": "The page as stored, the client's slug, and the new page count"
+    },
+    {
+      "name": "remove_page",
+      "description": "Take a page off the list an audit scores for a client",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "page",
+          "type": "string",
+          "required": true,
+          "description": "The page to remove, named by its label, its slug, or its URL",
+          "example": "Proven Process"
+        }
+      ],
+      "output_description": "The page that was removed and the client's remaining page count"
+    },
+    {
+      "name": "record_run",
+      "description": "Create or advance the record of an audit run. Only the fields you give are written, so a later call can report progress without resending what is already known. A run accumulates, so archives are added to and scores and sitemap are merged in rather than replacing what is there",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "date",
+          "type": "string",
+          "required": false,
+          "description": "The run's date as YYYY-MM-DD, which is what identifies it. Defaults to today",
+          "example": "2026-09-15"
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "description": "Where the run has got to. Reaching deployed, failed or cancelled stamps finished_at",
+          "enum": [
+            "crawling",
+            "scoring",
+            "transforming",
+            "deploying",
+            "deployed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        {
+          "name": "crawl_job_id",
+          "type": "string",
+          "required": false,
+          "description": "Job id sitecrawl.start returned, so the sweep can ask how the crawl is getting on"
+        },
+        {
+          "name": "archives",
+          "type": "array",
+          "required": false,
+          "description": "Archive filenames captured into the run's directory",
+          "items": {
+            "name": "filename",
+            "type": "string",
+            "description": "A filename sitting beside the run's record"
+          }
+        },
+        {
+          "name": "scores",
+          "type": "object",
+          "required": false,
+          "description": "PageSpeed scores for this run, keyed however the caller finds useful"
+        },
+        {
+          "name": "sitemap",
+          "type": "object",
+          "required": false,
+          "description": "What the crawl made of the sitemap: how many URLs it held, how many were reached, and whether the unreached ones were only sampled"
+        },
+        {
+          "name": "progress",
+          "type": "object",
+          "required": false,
+          "description": "How far the run has got within the stage it is in — pages scored so far, or what the crawl has checked and discovered. Name the stage in a phase key so a reader knows what the numbers count. A snapshot, so each call replaces the last and the time it was taken is stamped on it; an empty object clears it",
+          "example": {
+            "phase": "crawling",
+            "stage": "expand",
+            "checked": 412,
+            "discovered": 1203
+          }
+        },
+        {
+          "name": "scan_failures",
+          "type": "array",
+          "required": false,
+          "description": "Pages this pass could not score, and why. A snapshot, so each call replaces the last and an empty array clears it — a page that scores on a later pass stops being listed",
+          "items": {
+            "name": "failure",
+            "type": "string",
+            "description": "The page and strategy that failed, with the reason"
+          }
+        },
+        {
+          "name": "complete",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether this run covered the site fully. False when a cap, a sample or a block means the findings are partial, which the report must say"
+        },
+        {
+          "name": "deployed_url",
+          "type": "string",
+          "required": false,
+          "description": "Where the published report can be read"
+        },
+        {
+          "name": "error",
+          "type": "string",
+          "required": false,
+          "description": "What went wrong, for a run that failed"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false,
+          "description": "Anything worth recording about this particular run"
+        }
+      ],
+      "output_description": "The client slug, the run date, whether the record was created or updated, which fields were written, and the record as it now stands"
+    },
+    {
+      "name": "list_runs",
+      "description": "List recorded audit runs, newest first, for one client or across all of them",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": false,
+          "description": "Limit to one client, by slug, display name or hostname. Omit for every client",
+          "example": "brj"
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "required": false,
+          "default": 10,
+          "description": "How many runs to return. 0 returns all of them"
+        }
+      ],
+      "output_description": "A runs array of {client, date, status, complete, deployed_url, started_at, finished_at, archive_count} newest first, and a count"
+    },
+    {
+      "name": "get_run",
+      "description": "Read one audit run in full, including what it captured and where it published",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": true,
+          "description": "The client's slug, display name, or the hostname of its site",
+          "example": "brj"
+        },
+        {
+          "name": "date",
+          "type": "string",
+          "required": false,
+          "description": "The run's date as YYYY-MM-DD. Defaults to the most recent run",
+          "example": "2026-09-15"
+        }
+      ],
+      "output_description": "The client slug, the run date, the full run record, the archives stored with it, the directory they live in, and its size in bytes"
+    },
+    {
+      "name": "prune_runs",
+      "description": "Delete old audit runs and the archives stored with them, to stop the data directory growing without bound. Runs that have not finished are never touched",
+      "collect_input": true,
+      "params": [
+        {
+          "name": "client",
+          "type": "string",
+          "required": false,
+          "description": "Prune one client only, by slug, display name or hostname. Omit to prune every client",
+          "example": "brj"
+        },
+        {
+          "name": "keep",
+          "type": "number",
+          "required": false,
+          "default": 10,
+          "description": "How many of the most recent runs to keep per client regardless of age"
+        },
+        {
+          "name": "older_than_days",
+          "type": "number",
+          "required": false,
+          "default": 90,
+          "description": "Only delete runs older than this many days. 0 ignores age and keeps only the most recent ones"
+        },
+        {
+          "name": "dry_run",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Report what would be deleted without deleting anything"
+        }
+      ],
+      "output_description": "How many runs were deleted, kept, and left alone for being unfinished, the bytes reclaimed, the runs involved per client, and whether this was a dry run"
+    },
+    {
+      "name": "build_report",
+      "description": "Turn a run's captured archives into the report site: scores, issues, screenshots and the link worklist, ready for Jekyll to render. Reads only what is already on disk, so it is free to re-run",
+      "collect_input": false,
+      "params": [
+        {
+          "name": "raw_dir",
+          "type": "string",
+          "required": true,
+          "description": "Directory holding the captured archives: one gzipped PageSpeed report per page and form factor, and crawl.json.gz if the site was crawled"
+        },
+        {
+          "name": "site_dir",
+          "type": "string",
+          "required": true,
+          "description": "Where to build the report. Created from the seed templates the first time. Everything derived here is wiped and rebuilt on every call, so point it at nothing else"
+        },
+        {
+          "name": "pages",
+          "type": "array",
+          "required": false,
+          "description": "The pages to report on, in the order they should read. Worked out from the archives when omitted, which loses only the labels",
+          "items": {
+            "name": "page",
+            "type": "object",
+            "description": "One page in the report",
+            "properties": [
+              {
+                "name": "label",
+                "type": "string",
+                "required": true,
+                "description": "How the page is named in the report"
+              },
+              {
+                "name": "url",
+                "type": "string",
+                "required": true,
+                "description": "The page's full URL"
+              },
+              {
+                "name": "slug",
+                "type": "string",
+                "required": false,
+                "description": "Name of this page's archive files. Derived from the URL path when omitted"
+              }
+            ]
+          }
+        },
+        {
+          "name": "report",
+          "type": "object",
+          "required": false,
+          "description": "What the report calls itself. Falls back to a manifest.json sitting with the archives, then to defaults",
+          "properties": [
+            {
+              "name": "title",
+              "type": "string",
+              "required": false,
+              "description": "Name shown in the report's header, usually the site's owner"
+            },
+            {
+              "name": "site_url",
+              "type": "string",
+              "required": false,
+              "description": "The site the report is about"
+            },
+            {
+              "name": "date",
+              "type": "string",
+              "required": false,
+              "description": "The date the report is for, as YYYY-MM-DD. Defaults to today"
+            },
+            {
+              "name": "notes",
+              "type": "string",
+              "required": false,
+              "description": "Any note to carry into the report"
+            }
+          ]
+        },
+        {
+          "name": "categories",
+          "type": "array",
+          "required": false,
+          "description": "Render only these Lighthouse categories. Everything present in the archive, when omitted. A filter on rendering only \u2014 the archive is untouched",
+          "items": {
+            "name": "category",
+            "type": "string",
+            "description": "A Lighthouse category",
+            "enum": [
+              "performance",
+              "accessibility",
+              "best-practices",
+              "seo",
+              "agentic-browsing"
+            ]
+          }
+        },
+        {
+          "name": "deep_dive",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include the manual-review layer: the full scope callout and a notes stub per page, for an audit a human will finish by hand"
+        },
+        {
+          "name": "no_lighthouse",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Render without any scores, producing a link audit from the crawl alone. A rendering filter only, so dropping it brings the scores back"
+        },
+        {
+          "name": "no_links",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Render without the link findings even though the site was crawled. A rendering filter only"
+        },
+        {
+          "name": "reseed",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Copy the current seed templates over an existing report before building, to pull template fixes into a run already on disk. Hand-written findings are never touched; template edits made inside the run are overwritten"
+        },
+        {
+          "name": "seed_dir",
+          "type": "string",
+          "required": false,
+          "description": "Build from a different set of templates than the ones shipped with this module"
+        }
+      ],
+      "output_description": "Where the report was built, whether it was scaffolded or reseeded, what the report calls itself, the categories rendered, counts of pages, issues and screenshots, a summary of the link findings including whether coverage was partial, the files written, and any warnings \u2014 a report that is a link audit rather than a full one says so here"
+    }
+  ],
+  "fast_match": [
+    {
+      "pattern": "list my audit clients",
+      "tool": "list_clients"
+    },
+    {
+      "pattern": "show my audit clients",
+      "tool": "list_clients"
+    },
+    {
+      "pattern": "which sites do i audit",
+      "tool": "list_clients"
+    },
+    {
+      "pattern": "audit clients",
+      "tool": "list_clients"
+    },
+    {
+      "pattern": "show my audit runs",
+      "tool": "list_runs"
+    },
+    {
+      "pattern": "list my audit runs",
+      "tool": "list_runs"
+    },
+    {
+      "pattern": "audit history",
+      "tool": "list_runs"
+    },
+    {
+      "pattern": "how's the * audit going",
+      "tool": "get_run"
+    },
+    {
+      "pattern": "hows the * audit going",
+      "tool": "get_run"
+    },
+    {
+      "pattern": "the * audit",
+      "tool": "get_run"
+    },
+    {
+      "pattern": "prune audit runs",
+      "tool": "prune_runs"
+    }
+  ]
+}

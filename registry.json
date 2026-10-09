@@ -6,7 +6,32 @@
       "version": "1.2.1",
       "release_tag": "recipes-v1.2.1",
       "description": "Manage recipes, grocery lists, pantry, and meal planning",
-      "keywords": ["recipe", "cooking", "groceries", "meal", "food", "ingredient", "pantry"]
+      "keywords": [
+        "recipe",
+        "cooking",
+        "groceries",
+        "meal",
+        "food",
+        "ingredient",
+        "pantry"
+      ]
+    },
+    {
+      "name": "site_audit",
+      "version": "1.2.0",
+      "release_tag": "site_audit-v1.2.0",
+      "description": "Keep the client list and the audit history for website audits, and build the report from a run's captured archives",
+      "keywords": [
+        "audit",
+        "site audit",
+        "website audit",
+        "pagespeed",
+        "lighthouse",
+        "crawl",
+        "broken links",
+        "seo",
+        "client site"
+      ]
     }
   ]
 }

@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""site_audit.remove_page -- take a page off the list an audit scores."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+import siteaudit as sa
+
+values = sa.params()
+client_slug, record = sa.resolve_client(sa.client_identifier(values, ("client",)))
+
+needle = str(values.get("page") or values.get("item") or "").strip()
+if not needle:
+    sa.fail("page is required", sa.EXIT_USAGE)
+
+pages = record.get("pages") or []
+if not pages:
+    sa.fail(f"{client_slug} has no pages to remove", sa.EXIT_NOT_FOUND)
+
+lowered = needle.lower()
+trimmed = needle.rstrip("/").lower()
+
+matches = [
+    index
+    for index, page in enumerate(pages)
+    if str(page.get("label", "")).lower() == lowered
+    or str(page.get("slug", "")).lower() == lowered
+    or str(page.get("url", "")).rstrip("/").lower() == trimmed
+]
+
+if not matches:
+    sa.fail(
+        f"No page on {client_slug} matching '{needle}'",
+        sa.EXIT_NOT_FOUND,
+        known=[p.get("label") for p in pages],
+    )
+
+if len(matches) > 1:
+    sa.fail(
+        f"'{needle}' matches more than one page on {client_slug}",
+        sa.EXIT_USAGE,
+        candidates=[pages[i] for i in matches],
+    )
+
+removed = pages.pop(matches[0])
+record["pages"] = pages
+record["updated_at"] = sa.now()
+
+sa.save_client(client_slug, record)
+
+sa.ok(
+    f"Removed '{removed.get('label')}' from {client_slug}, which now scores "
+    f"{len(pages)} page(s)",
+    slug=client_slug,
+    removed=removed,
+    page_count=len(pages),
+)
