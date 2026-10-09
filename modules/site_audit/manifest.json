@@ -1,6 +1,6 @@
 {
   "name": "site_audit",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Keep the client list and the audit history for website audits, and build the report from a run's captured archives",
   "keywords": [
     "audit",

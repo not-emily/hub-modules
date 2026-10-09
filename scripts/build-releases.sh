@@ -67,8 +67,11 @@ build_module() {
     # Remove old zip if exists
     rm -f "$zip_file"
 
-    # Create zip from module directory
-    (cd "$MODULES_DIR" && zip -r "$zip_file" "$module_name" -x "*.DS_Store" -x "*/__pycache__/*")
+    # Create zip from module directory. A seed Gemfile.lock pins the bundler
+    # version and platform of whoever last ran bundle install there, which then
+    # fails on every station that is not theirs.
+    (cd "$MODULES_DIR" && zip -r "$zip_file" "$module_name" \
+        -x "*.DS_Store" -x "*/__pycache__/*" -x "*/seed/Gemfile.lock")
 
     echo "  Created: $zip_file"
     echo ""
